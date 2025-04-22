@@ -8,67 +8,72 @@ This repository contains code for fine-tuning machine learning models using mult
 - `multiple_GPU.yaml`: Configuration file for multi-GPU setup
 - `finetuneA100_gradual_transformer.py`: Implementation of fine-tuning for transformer models on A100 GPUs
 
-## Setting up GitHub Repository
-1. Create a GitHub repository if you don't already have one:
-   - Go to GitHub.com and log in
-   - Click "+" in the top-right corner and select "New repository"
-   - Name your repository (e.g., "multiGPU")
-   - Choose visibility (private or public)
-   - Click "Create repository"
+## Workflow
 
-## Initial Setup on Linux Server
-1. Connect to Linux server via SSH:
-   ```bash
-   ssh msalehjahromi@10.113.120.155
-   ```
+### Linux Server Access
+```bash
+# Connect to Linux server via SSH
+ssh msalehjahromi@10.113.120.155
 
-2. Navigate to your project:
-   ```bash
-   cd /rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU
-   ```
+# Navigate to project directory
+cd /rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU
+```
 
-3. Initialize Git and push to GitHub:
-   ```bash
-   # Initialize Git if not already done
-   git init
+### GitHub Repository
+This project is hosted at: https://github.com/mortezasj11/finetune-TtCD.git
 
-   # Add your files
-   git add .
+### Essential Git Commands
 
-   # Commit
-   git commit -m "Initial commit"
+#### Initial Setup (if needed on a new machine)
+```bash
+# Clone repository
+git clone https://github.com/mortezasj11/finetune-TtCD.git
 
-   # Add GitHub repository as remote (replace with your actual username)
-   git remote add origin git@github.com:yourusername/multiGPU.git
+# Configure Git (first time only)
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+```
 
-   # Push to GitHub
-   git push -u origin main
-   ```
+#### Daily Workflow Commands
+```bash
+# Check repository status
+git status
 
-## Working with the Repository
-After initial setup, use these commands to manage your code:
+# Pull latest changes from GitHub
+git pull
 
-1. To push changes:
-   ```bash
-   git add .
-   git commit -m "Your commit message"
-   git push
-   ```
+# Add all modified files
+git add .
 
-2. To pull changes from GitHub:
-   ```bash
-   git pull
-   ```
+# Add specific files
+git add filename.py
 
-## Local Development
+# Commit changes
+git commit -m "Description of changes"
 
-To work on this project locally:
+# Push to GitHub
+git push
 
-1. Clone the repository from GitHub:
-   ```bash
-   git clone git@github.com:yourusername/multiGPU.git
-   ```
+# See commit history
+git log --oneline
+```
 
-2. Make your changes in your preferred editor
+#### Branch Management
+```bash
+# Create and switch to a new branch
+git checkout -b new-feature
 
-3. Sync your changes with the remote Linux server through GitHub
+# Switch to existing branch
+git checkout main
+
+# Merge branches
+git merge new-feature
+
+# Push new branch to GitHub
+git push -u origin new-feature
+```
+
+### Development Workflow
+1. Edit files locally on Windows using your preferred editor
+2. Run code on the Linux server using SSH terminal
+3. Use Git to sync changes between environments when needed
