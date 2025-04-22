@@ -73,7 +73,7 @@ if __name__ == "__main__":
     # Run the training script with the balanced validation set
     subprocess.run([
         "python3", 
-        "/rsrch1/ip/msalehjahromi/codes/FineTune/cancer_risk/finetuneA100_gradual_transformer.py",
+        "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/1_finetuneA100_gradual_transformer.py",
         "--csv", temp_csv_path,
         "--accum-steps", "10",
         "--cuda-id", "0",

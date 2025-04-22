@@ -104,17 +104,19 @@ git push -u origin new-feature      # Push new branch
 
 This project supports two main execution workflows:
 
-### Single-GPU Training (via JupyterHub)
+#### Single-GPU Training (via JupyterHub)
 
-one_GPU.yaml → run_fineTune.py → finetuneA100_gradual_transformer.py
+- one_GPU.yaml   →   run_fineTune.py   →   finetuneA100_gradual_transformer.py
 
-Then
-multiple_GPU.yaml → run_fineTune_ddp_launcher.py → run_fineTune_ddp.py
-
-
+#### Multiple-GPU Training
+- multiple_GPU.yaml   →   run_fineTune_ddp_launcher.py   →   run_fineTune_ddp.py
 
 
-#################################################################
-job-runner.sh xxx.yaml
-kubectl delete job -n yn-gpu-workload msalehjahromi-gpu-xxx
-kubectl apply -f x.yaml
+
+
+## K8S commands
+- job-runner.sh xxx.yaml
+
+- kubectl delete job -n yn-gpu-workload msalehjahromi-gpu-xxx
+
+- kubectl apply -f x.yaml

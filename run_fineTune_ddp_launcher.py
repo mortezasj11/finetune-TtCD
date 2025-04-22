@@ -87,7 +87,7 @@ def main(args):
     os.makedirs(metrics_dir, exist_ok=True)
         
     # Path to the training script
-    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run_fineTune_ddp.py")
+    script_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/run_fineTune_ddp.py"
     
     # Build torchrun command
     torchrun_command = [
