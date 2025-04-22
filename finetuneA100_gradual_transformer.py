@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import torchvision.transforms as transforms
 
+import yaml
+from pathlib import Path
 
 os.environ['PYTHONPATH'] = "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader5"
 checkpoint_path = "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6/output_dir/448_192_all14_17M_P32_B8/eval/training_314999/teacher_checkpoint.pth"
@@ -265,6 +267,7 @@ class Trainer:
         accum_steps: int = 4,
         print_every: int = 100,
         val_every: int = 500,
+        metrics_dir: str = None,
     ):
         self.model = model.to(device)
         self.opt = optimizer
@@ -273,6 +276,32 @@ class Trainer:
         self.accum = accum_steps
         self.print_every = print_every
         self.val_every = val_every
+        self.metrics_dir = metrics_dir
+        self.metrics = {
+            'training': {
+                'iterations': [],
+                'loss': [],
+                'acc1': [],
+                'acc4': [],
+            },
+            'validation': {
+                'iterations': [],
+                'loss': [],
+                'acc1': [],
+            }
+        }
+        
+        # Create metrics directory if it doesn't exist
+        if self.metrics_dir:
+            Path(self.metrics_dir).mkdir(parents=True, exist_ok=True)
+
+    def save_metrics(self):
+        """Save metrics to a YAML file"""
+        if self.metrics_dir:
+            metrics_file = Path(self.metrics_dir) / 'training_metrics.yaml'
+            with open(metrics_file, 'w') as f:
+                yaml.dump(self.metrics, f, default_flow_style=False)
+            print(f"Metrics saved to {metrics_file}")
 
     def _train_step(self, chunks, labels, mask):
         chunks = chunks.to(self.dev)  # shape: [N, 3, H, W]
@@ -326,6 +355,8 @@ class Trainer:
                 - 'gradual': Gradually unfreeze blocks as training progresses
                 - 'full_after_warmup': Completely unfreeze after initial warmup
         """
+        global_step = 0
+        
         for epoch in range(epochs):
             print(f"\n>>> Epoch {epoch+1}/{epochs}")
             
@@ -359,7 +390,9 @@ class Trainer:
             total_acc4 = 0.0
             one_count_1yr = 0
             one_count_4yr = 0
+            
             for step, (chunks, labels, mask) in enumerate(train_loader, 1):
+                global_step += 1
                 true_loss, acc1, logits = self._train_step(chunks, labels, mask)
                 total_loss += true_loss  # Store the real loss value
                 total_acc1 += acc1
@@ -383,11 +416,28 @@ class Trainer:
                     avg_acc1 = total_acc1 / step
                     avg_acc4 = total_acc4 / step
                     print(f"[Train] After {step} patients: avg_loss={avg_loss:.4f}, avg acc1={avg_acc1:.4f}, acc4={avg_acc4:.4f}, 1-year count={one_count_1yr}, 4-year count={one_count_4yr}")
+                    
+                    # Record metrics
+                    self.metrics['training']['iterations'].append(global_step)
+                    self.metrics['training']['loss'].append(avg_loss)
+                    self.metrics['training']['acc1'].append(avg_acc1)
+                    self.metrics['training']['acc4'].append(avg_acc4)
+                    
+                    # Save metrics
+                    self.save_metrics()
 
                 if val_loader is not None and step % self.val_every == 0:
                     print(f"=== Interim validation at step {step} ===")
                     va_loss, va_acc1 = self.evaluate(val_loader)
                     print(f"[Interim Val] loss={va_loss:.4f}, acc1={va_acc1:.4f}")
+                    
+                    # Record validation metrics
+                    self.metrics['validation']['iterations'].append(global_step)
+                    self.metrics['validation']['loss'].append(va_loss)
+                    self.metrics['validation']['acc1'].append(va_acc1)
+                    
+                    # Save metrics
+                    self.save_metrics()
 
             if step % self.accum != 0:
                 self.opt.step()
@@ -405,6 +455,14 @@ class Trainer:
                 va_loss, va_acc1 = self.evaluate(val_loader)
                 print(f"=== Validation complete: loss={va_loss:.4f}, acc1={va_acc1:.4f} ===")
                 logging.info(f"Validation loss={va_loss:.4f}, val_acc1={va_acc1:.4f}")
+                
+                # Record end-of-epoch validation metrics
+                self.metrics['validation']['iterations'].append(global_step)
+                self.metrics['validation']['loss'].append(va_loss)
+                self.metrics['validation']['acc1'].append(va_acc1)
+                
+                # Save metrics
+                self.save_metrics()
 
     def evaluate(self, loader: DataLoader):
         """
@@ -553,6 +611,10 @@ def main(args):
     optimizer = optim.AdamW(param_groups, weight_decay=args.weight_decay)
     criterion = nn.BCEWithLogitsLoss(pos_weight=class_weights.to(device))
 
+    # Create metrics directory
+    metrics_dir = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_single_gpu"
+    os.makedirs(metrics_dir, exist_ok=True)
+    
     trainer = Trainer(
         model,
         optimizer,
@@ -560,7 +622,8 @@ def main(args):
         device,
         accum_steps=args.accum_steps,
         print_every=100,
-        val_every=1000
+        val_every=1000,
+        metrics_dir=metrics_dir
     )
     trainer.fit(train_loader, val_loader, 
                 epochs=args.epochs, 
