@@ -9,22 +9,50 @@ import torch.distributed as dist
 from contextlib import nullcontext  # for the no_sync helper
 from torch.distributed.fsdp import (
     FullyShardedDataParallel as FSDP,
-    auto_wrap_policy,
+    StateDictType,
 )
-from torch.distributed.fsdp.wrap import TransformerPolicy
+from torch.distributed.fsdp.wrap import (
+    transformer_auto_wrap_policy,
+    size_based_auto_wrap_policy,
+)
 from torch.distributed.fsdp import MixedPrecision
-from torch.distributed.fsdp.sharding_strategy import ShardingStrategy
+from torch.distributed.fsdp import ShardingStrategy
 from torch.utils.data import DataLoader
+from torch.nn import TransformerEncoderLayer, TransformerDecoderLayer
 
 # Import your model and other components
-from finetuneA100_gradual_transformer import (
-    DinoVisionTransformer, 
-    CombinedModel, 
-    VolumeProcessor, 
-    NLSTDataset, 
-    Trainer,
-    calculate_class_weights
-)
+import sys
+import os
+import importlib.util
+
+# Define the full path to the module file
+module_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/finetuneA100_gradual_transformer.py"
+
+# Check if the file exists
+if not os.path.exists(module_path):
+    # Try alternative path with a number prefix
+    alt_module_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/1_finetuneA100_gradual_transformer.py"
+    if os.path.exists(alt_module_path):
+        module_path = alt_module_path
+    else:
+        print(f"ERROR: Could not find module at {module_path} or {alt_module_path}")
+        print("Files in directory:", os.listdir("/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU"))
+        sys.exit(1)
+
+# Load the module dynamically
+spec = importlib.util.spec_from_file_location("transformer_module", module_path)
+transformer_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(transformer_module)
+
+# Import the required classes and functions from the module
+DinoVisionTransformer = transformer_module.DinoVisionTransformer
+CombinedModel = transformer_module.CombinedModel
+VolumeProcessor = transformer_module.VolumeProcessor
+NLSTDataset = transformer_module.NLSTDataset
+Trainer = transformer_module.Trainer
+calculate_class_weights = transformer_module.calculate_class_weights
+
+print("Files in the directory:", os.listdir("/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU"))
 
 def install_packages():
     commands = [
@@ -98,7 +126,7 @@ class DDPTrainer(Trainer):
         optimizer: torch.optim.Optimizer,
         criterion: torch.nn.Module,
         device: torch.device,
-        accum_steps: int = 4,
+        accum_steps: int = 10,
         print_every: int = 100,
         val_every: int = 500,
         rank: int = 0,
@@ -107,62 +135,65 @@ class DDPTrainer(Trainer):
         super().__init__(model, optimizer, criterion, device, accum_steps, print_every, val_every)
         self.rank = rank
         self.world_size = world_size
+        self.device = device  # Explicitly set device attribute
     
     def _train_step(self, chunks, labels, mask):
-        """Modified training step with DDP-aware gradient accumulation"""
-        N = chunks.size(0)
+        """Modified training step that respects FSDP workflow"""
         running_loss = 0.0
         
-        # Forward pass through the feature extractor
-        with torch.no_grad():
-            chunk_features = []
-            for i in range(N):
-                chunk = chunks[i].to(self.device)
-                feature = self.model.base(chunk)
-                chunk_features.append(feature)
+        # Remove the extra dimension from chunks
+        # Shape from (N, 1, 3, 448, 448) to (N, 3, 448, 448)
+        chunks = chunks.squeeze(1)
         
-        # Stack and move to appropriate device
-        chunk_features = torch.cat(chunk_features, dim=0).to(self.device)
+        # Move chunks to device 
+        chunks = chunks.to(self.device)  # (N, 3, 448, 448)
         
-        # We need to log some info in rare cases for debugging
-        if N < 10:
-            logging.warning(f"Small batch encountered: {N} chunks")
+        # Debug info - only print once
+        if self.rank == 0 and self.global_step == 1:
+            print(f"Chunks shape after squeeze: {chunks.shape}")
         
-        # Forward pass through the aggregator and compute loss
-        self.optimizer.zero_grad()
-        
-        # Logits shape: [1, num_tasks]
-        logits = self.model.agg(chunk_features)
+        # Forward pass through the entire model (base + aggregator)
+        try:
+            logits = self.model(chunks)  # Combined forward pass
+        except Exception as e:
+            # Print diagnostic info and reraise
+            print(f"Error in forward pass: {e}")
+            print(f"Chunks shape: {chunks.shape}")
+            raise
 
-        # Move labels to the right device
-        target = labels.to(self.device)
+        # Convert NumPy arrays to PyTorch tensors and move to device
+        target = torch.tensor(labels, dtype=torch.float32, device=self.device)
+        mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
         
         # Apply binary cross entropy to each task output
         loss = 0.0
         for i in range(logits.size(1)):
-            if mask[i]:  # Only calculate loss for non-missing values
-                task_loss = self.criterion(logits[0, i:i+1], target[i:i+1])
+            if mask_tensor[i]:  # Only calculate loss for non-missing values
+                task_loss = self.crit(logits[0, i:i+1], target[i:i+1])
                 loss += task_loss
                 running_loss += task_loss.item()
         
         # Normalize loss by number of active tasks
-        active_tasks = mask.sum().item()
+        active_tasks = mask_tensor.sum().item()
         if active_tasks > 0:
             loss = loss / active_tasks
             
         # -------------------------------------------------------
-        # 3. Accumulate gradients locally; only sync on last step
+        # Accumulate gradients locally; only sync on last step
         # -------------------------------------------------------
         accum_step = (self.global_step - 1) % self.accum
         sync_now = (accum_step == self.accum - 1)
-        ctx = nullcontext() if sync_now else self.model.no_sync()
+        if hasattr(self.model, "no_sync"):
+            ctx = nullcontext() if sync_now else self.model.no_sync()
+        else:
+            ctx = nullcontext()
         with ctx:
             loss.backward()
         
         # Only update weights after accumulating enough gradients
         if (self.global_step) % self.accum == 0:
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+            self.opt.step()
+            self.opt.zero_grad()
         
         # Only log from rank 0
         if self.rank == 0 and (self.global_step) % self.print_every == 0:
@@ -345,7 +376,6 @@ def main(args):
     device = torch.device(f"cuda:{local_rank}")
     
     # Import model_ct from your module - assuming it's already created as in finetuneA100_gradual_transformer.py
-    import sys
     sys.path.insert(0, "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6")
     
     from functools import partial
@@ -356,11 +386,7 @@ def main(args):
     checkpoint_path = "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6/output_dir/448_192_all14_17M_P32_B8/eval/training_314999/teacher_checkpoint.pth"
     patch_size = 32
     
-    checkpoint = torch.load(checkpoint_path, map_location=device)
-    teacher_weights = checkpoint["teacher"]
-    teacher_weights_cleaned = {k.replace("backbone.", ""): v for k, v in teacher_weights.items()}
-    
-    # Create the base model
+    # Load the base model first on CPU
     model_ct = DinoVisionTransformer(
         img_size=448,
         patch_size=patch_size,
@@ -375,48 +401,135 @@ def main(args):
         num_register_tokens=5,
         init_values = 1.0e-05,
     )
-    
-    # Load pretrained weights
+
+    # Add explicit initialization of cls_token (this is the problematic part)
+    model_ct.cls_token = torch.nn.Parameter(torch.zeros(1, 1, 768))
+    torch.nn.init.normal_(model_ct.cls_token, std=0.02)  # Use standard ViT initialization
+
+    # Now load the weights
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    teacher_weights = checkpoint["teacher"]
+    teacher_weights_cleaned = {k.replace("backbone.", ""): v for k, v in teacher_weights.items()}
+
+    # Check if cls_token is in the loaded weights
+    if 'cls_token' in teacher_weights_cleaned:
+        print(f"Found cls_token in weights with shape: {teacher_weights_cleaned['cls_token'].shape}")
+    else:
+        print("Warning: cls_token not found in pretrained weights")
+
+    # Load weights with strict=False to allow for missing keys
     model_ct.load_state_dict(teacher_weights_cleaned, strict=False)
-    
-    # Create the combined model
-    base_model = model_ct
+
+    # ---- materialise empty meta tokens ---------------------------------
+    def materialize_tokens_(m, dev):
+        with torch.no_grad():
+            for n in ["cls_token", "register_tokens", "mask_token"]:
+                if hasattr(m, n) and getattr(m, n).storage().size() == 0:  # Check if meta/empty
+                    print(f"Materializing {n} tensor")
+                    real = torch.zeros_like(getattr(m, n), device=dev)
+                    torch.nn.init.normal_(real, std=0.02)
+                    setattr(m, n, torch.nn.Parameter(real, requires_grad=True))
+
+    # First verify if we have meta tensors
+    print(f"Cls token shape after loading: {model_ct.cls_token.shape}, " 
+          f"requires_grad: {model_ct.cls_token.requires_grad}, "
+          f"storage size: {model_ct.cls_token.storage().size()}")
+
+    # Materialize tokens properly (must come after load_state_dict but before moving to device)
+    materialize_tokens_(model_ct, torch.device('cpu'))  # First materialize on CPU
+
+    # Move model_ct to device
+    model_ct = model_ct.to(device)
+
+    # Verify cls_token is properly initialized with storage
+    print(f"Cls token shape after materialization and device move: {model_ct.cls_token.shape}, " 
+          f"requires_grad: {model_ct.cls_token.requires_grad}, "
+          f"storage size: {model_ct.cls_token.storage().size()}, "
+          f"device: {model_ct.cls_token.device}")
+
+    # Now build the combined model
     model = CombinedModel(
-        base_model=base_model,
-        chunk_feat_dim=768,  # ViT-Base feature dimension
+        base_model=model_ct,          # model_ct is already on correct CUDA device
+        chunk_feat_dim=768,
         hidden_dim=1024,
         num_tasks=len(label_cols),
         num_attn_heads=args.num_attn_heads,
         num_layers=args.num_layers,
         dropout_rate=args.dropout
     )
+
+    # Move the entire combined model to the device (ensures all parameters are on same device)
+    model = model.to(device)
     
-    # ------------------------------------------------------------------
-    # 2. Wrap with FSDP
-    #    – Auto-wrap any nn.Module that looks like a Transformer block
-    #    – Use SHARD_GRAD_OP to overlap comm & compute
-    #    – bf16 mixed precision because A100/H100 cluster
-    # ------------------------------------------------------------------
+    # Verify all parameters are on the correct device
+    if global_rank == 0:
+        print(f"Verifying all parameters are on {device}")
+    for name, param in model.named_parameters():
+        assert param.device == device, f"Parameter {name} is on {param.device}, expected {device}"
+    if global_rank == 0:
+        print(f"All parameters successfully verified on {device}")
+
+    # Set all parameters to requires_grad=True
+    for param in model.parameters():
+        param.requires_grad = True
+
+    # Now it's safe to wrap with FSDP
     mp_policy = MixedPrecision(param_dtype=torch.bfloat16,
                               reduce_dtype=torch.bfloat16,
                               buffer_dtype=torch.bfloat16)
     
+    transformer_wrap_policy = partial(
+        transformer_auto_wrap_policy,
+        transformer_layer_cls={
+            TransformerEncoderLayer,
+            TransformerDecoderLayer,
+            # Add custom transformer blocks if needed
+        }
+    )
+
     model = FSDP(
         model,
-        auto_wrap_policy=auto_wrap_policy(TransformerPolicy),   # ViT & aggregator
+        auto_wrap_policy=transformer_wrap_policy,
         sharding_strategy=ShardingStrategy.FULL_SHARD,
         mixed_precision=mp_policy,
-        device_id=torch.cuda.current_device(),
-        gradient_as_bucket_view=True,
+        device_id=local_rank,  # Use local_rank instead of device
     )
-    
-    # Create optimizer - use a lower learning rate due to multiple GPUs
+
+    # Create parameter groups with different learning rates
+    # Define our own parameter groups manually after FSDP wrapping
+    main_lr = args.lr
+    base_lr = args.lr * 0.1
+
+    # Option 1: Use named_parameters to separate base and aggregator
+    base_params = []
+    agg_params = []
+
+    # We need to name the parameters more specifically
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            if 'base' in name:
+                base_params.append(param)
+            else:
+                agg_params.append(param)
+
+    # Configure optimizer with parameter groups
+    param_groups = [
+        {'params': base_params, 'lr': base_lr},  # Lower LR for pretrained DinoVisionTransformer
+        {'params': agg_params, 'lr': main_lr}    # Higher LR for aggregator
+    ]
+
+    # Log the number of parameters in each group
+    if global_rank == 0:
+        logging.info(f"DinoVisionTransformer parameters: {len(base_params)} (LR: {base_lr})")
+        logging.info(f"Aggregator parameters: {len(agg_params)} (LR: {main_lr})")
+
+    # Create optimizer with parameter groups
     if args.optimizer == 'adam':
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+        optimizer = torch.optim.Adam(param_groups)
     elif args.optimizer == 'adamw':
-        optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+        optimizer = torch.optim.AdamW(param_groups, weight_decay=args.weight_decay)
     else:
-        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+        optimizer = torch.optim.SGD(param_groups, momentum=0.9)
     
     # Configure loss function
     if weights is not None:
@@ -499,6 +612,9 @@ if __name__ == "__main__":
                         help="Print training stats every N steps")
     parser.add_argument("--val-every", type=int, default=500, 
                         help="Run validation every N steps")
+    parser.add_argument("--metrics-dir", type=str, 
+                       default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
+                       help="Directory to save training metrics")
     
     args = parser.parse_args()
     

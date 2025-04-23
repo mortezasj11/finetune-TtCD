@@ -5,6 +5,27 @@ import argparse
 import pandas as pd
 import yaml
 from pathlib import Path
+import socket
+import torch
+import torch.distributed as dist
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel as FSDP,
+)
+from torch.distributed.fsdp.wrap import (
+    transformer_auto_wrap_policy,
+    size_based_auto_wrap_policy,
+)
+from torch.nn import TransformerEncoderLayer, TransformerDecoderLayer
+
+# Constants for distributed environment
+_TORCH_DISTRIBUTED_ENV_VARS = [
+    "MASTER_ADDR",
+    "MASTER_PORT",
+    "RANK",
+    "WORLD_SIZE",
+    "LOCAL_RANK",
+    "LOCAL_WORLD_SIZE",
+]
 
 def install_packages():
     commands = [
@@ -68,6 +89,73 @@ def prepare_balanced_validation(csv_path, output_csv_path):
     return output_csv_path
 
 
+def _get_available_port():
+    """Get a free port on the machine."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("", 0))  # Bind to a free port provided by the OS
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
+
+
+def _collect_env_vars():
+    """Collect existing torch distributed environment variables."""
+    return {var: os.environ.get(var) for var in _TORCH_DISTRIBUTED_ENV_VARS if var in os.environ}
+
+
+def _check_env_variable(name, value):
+    """Check if environment variable exists and matches expected value."""
+    if name in os.environ and os.environ[name] != value:
+        raise ValueError(
+            f"Environment variable '{name}' already exists with value '{os.environ[name]}', "
+            f"which differs from the expected value '{value}'"
+        )
+
+
+class _TorchDistributedEnvironment:
+    def __init__(self):
+        self.master_addr = os.environ.get("MASTER_ADDR", "127.0.0.1")
+        self.master_port = int(os.environ.get("MASTER_PORT", _get_available_port()))
+        self.rank = int(os.environ.get("RANK", 0))
+        self.world_size = int(os.environ.get("WORLD_SIZE", 1))
+        self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        self.local_world_size = int(os.environ.get("LOCAL_WORLD_SIZE", 1))
+
+        env_vars = _collect_env_vars()
+        if not env_vars:
+            raise RuntimeError("Torchrun environment variables are not set.")
+        elif len(env_vars) == len(_TORCH_DISTRIBUTED_ENV_VARS):
+            self._set_from_preset_env()  # Ensure that environment variables are set correctly
+        else:
+            collected_env_vars = ", ".join(env_vars.keys())
+            raise RuntimeError(f"Partially set environment: {collected_env_vars}")
+
+    def _set_from_preset_env(self):
+        # Initialization from preset torchrun environment variables
+        self.master_addr = os.environ["MASTER_ADDR"]
+        self.master_port = int(os.environ["MASTER_PORT"])
+        self.rank = int(os.environ["RANK"])
+        self.world_size = int(os.environ["WORLD_SIZE"])
+        self.local_rank = int(os.environ["LOCAL_RANK"])
+        self.local_world_size = int(os.environ["LOCAL_WORLD_SIZE"])
+
+    def export(self, *, overwrite: bool) -> "_TorchDistributedEnvironment":
+        env_vars = {
+            "MASTER_ADDR": self.master_addr,
+            "MASTER_PORT": str(self.master_port),
+            "RANK": str(self.rank),
+            "WORLD_SIZE": str(self.world_size),
+            "LOCAL_RANK": str(self.local_rank),
+            "LOCAL_WORLD_SIZE": str(self.local_world_size),
+        }
+        if not overwrite:
+            for k, v in env_vars.items():
+                _check_env_variable(k, v)
+
+        os.environ.update(env_vars)
+        return self
+
+
 def main(args):
     # Install required packages if needed
     if args.install_packages:
@@ -87,12 +175,16 @@ def main(args):
     os.makedirs(metrics_dir, exist_ok=True)
         
     # Path to the training script
-    script_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/run_fineTune_ddp.py"
+    script_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/2_run_fineTune_ddp.py"
     
+    # Get a random port
+    port = _get_available_port()
+
     # Build torchrun command
     torchrun_command = [
         "torchrun",
         f"--nproc_per_node={args.num_gpus}",
+        f"--master_port={port}",  # Use random port
         script_path,
         "--csv", csv_path,
         "--accum-steps", str(args.accum_steps),
@@ -118,6 +210,9 @@ def main(args):
     print(f"Running command: {' '.join(torchrun_command)}")
     
     # Execute the training
+    env = _TorchDistributedEnvironment()
+    env.export(overwrite=True)  # Force environment variables to be set properly
+
     subprocess.run(torchrun_command, check=True)
 
     print(f"Training metrics will be saved to: {metrics_dir}/training_metrics.yaml")
@@ -137,11 +232,11 @@ if __name__ == "__main__":
     # Hardware parameters
     parser.add_argument("--num-gpus", type=int, default=4,
                         help="Number of GPUs to use for training")
-    parser.add_argument("--num-workers", type=int, default=4, 
+    parser.add_argument("--num-workers", type=int, default=5, 
                         help="Number of workers for data loading")
     
     # Training parameters
-    parser.add_argument("--accum-steps", type=int, default=10, 
+    parser.add_argument("--accum-steps", type=int, default=2, 
                         help="Number of steps to accumulate gradients over")
     parser.add_argument("--epochs", type=int, default=10, 
                         help="Number of epochs to train for")
@@ -155,7 +250,7 @@ if __name__ == "__main__":
                         help="Strategy for unfreezing the base model")
     
     # Model parameters
-    parser.add_argument("--num-attn-heads", type=int, default=4, 
+    parser.add_argument("--num-attn-heads", type=int, default=3, 
                         help="Number of attention heads in the transformer aggregator")
     parser.add_argument("--num-layers", type=int, default=2, 
                         help="Number of layers in the transformer aggregator")

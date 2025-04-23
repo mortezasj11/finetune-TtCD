@@ -111,12 +111,17 @@ This project supports two main execution workflows:
 #### Multiple-GPU Training
 - multiple_GPU.yaml   →   run_fineTune_ddp_launcher.py   →   run_fineTune_ddp.py
 
-
-
+### Json
+So 50 iterations would mean 50 individual patient cases have been processed. If your accum_size is 10, then the model weights would have been updated 5 times (after processing iterations 10, 20, 30, 40, and 50).
 
 ## K8S commands
 - job-runner.sh xxx.yaml
 
-- kubectl delete job -n yn-gpu-workload msalehjahromi-gpu-xxx
+- kubectl delete job -n yn-gpu-workload msalehjahromi-torchrun-ft1
+- kubectl delete job -n yn-gpu-workload msalehjahromi-torchrun-ftn
 
 - kubectl apply -f x.yaml
+
+
+Out of memory, I need to use H100, install other packages!!!!
+Also I messed up the 1_ files, I need to have them back from github

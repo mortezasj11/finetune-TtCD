@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: msalehjahromi-torchrun-ft1
+  name: msalehjahromi-torchrun-ftn
   namespace: yn-gpu-workload
   labels:
     k8s-user: msalehjahromi
@@ -38,12 +38,12 @@ spec:
           image: hpcharbor.mdanderson.edu/nnunetv2/nnunetv2@sha256:4ab016ba4b356842be74fbf58159480598bfc015c8454339022aa0fcbfdc196d
           command: ["torchrun"]
           args: [
-            "--nproc_per_node=1", 
+            "--nproc_per_node=4", 
             "--nnodes=1", 
             "--node_rank=0", 
             "--master_addr=$(MASTER_ADDR)",
             "--master_port=$(MASTER_PORT)",
-            "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/1_run_fineTune.py"
+            "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/2_run_fineTune_ddp_launcher.py"
           ]
           workingDir: "/rsrch1/ip/msalehjahromi"
           env:
@@ -54,7 +54,7 @@ spec:
                 fieldRef:
                   fieldPath: status.podIP  # Use the pod IP for MASTER_ADDR
             - name: MASTER_PORT
-              value: "29500"  # Standard port for PyTorch distributed
+              value: "29500"  # Or any other unused port
             - name: NCCL_DEBUG
               value: "INFO"  # Enable NCCL debug logs
             - name: NCCL_SOCKET_IFNAME
@@ -70,8 +70,8 @@ spec:
               mountPath: "/rsrch1/ip/msalehjahromi/"
           resources:
             limits:
-              nvidia.com/gpu: "1"  # Request 4 GPUs for the test run
+              nvidia.com/gpu: "4"  # Request 4 GPUs for the test run
             requests:
-              nvidia.com/gpu: "1"
+              nvidia.com/gpu: "4"
           imagePullPolicy: IfNotPresent
       restartPolicy: Never
