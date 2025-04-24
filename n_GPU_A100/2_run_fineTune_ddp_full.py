@@ -1,3 +1,5 @@
+# File: n_GPU_A100/2_run_fineTune_ddp_full.py
+
 import subprocess
 import os
 import logging
@@ -6,28 +8,15 @@ import argparse
 import torch
 import torch.nn.functional as F
 import torch.distributed as dist
-from contextlib import nullcontext  # for the no_sync helper
-from torch.distributed.fsdp import (
-    FullyShardedDataParallel as FSDP,
-    StateDictType,
-)
-from torch.distributed.fsdp.wrap import (
-    transformer_auto_wrap_policy,
-    size_based_auto_wrap_policy,
-)
-from torch.distributed.fsdp import MixedPrecision
-from torch.distributed.fsdp import ShardingStrategy
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
-from torch.nn import TransformerEncoderLayer, TransformerDecoderLayer
-
-# Import your model and other components
-import sys
-import os
-import importlib.util
 import numpy as np
 from sklearn.metrics import roc_auc_score
+import sys
+import time
+import json
 
-# Add this instead:
+# Import utilities from local model_utils.py file
 from model_utils import (
     DinoVisionTransformer, 
     CombinedModel, 
@@ -103,11 +92,30 @@ def prepare_balanced_validation(csv_path):
     return temp_csv_path
 
 
-# Modified Trainer class that supports DDP and gradient accumulation
-class DDPTrainer(Trainer):
+def calculate_auc(predictions, targets, mask=None):
+    """Calculate AUC score for binary classification"""
+    if mask is not None:
+        valid_indices = np.where(mask)[0]
+        if len(valid_indices) == 0:
+            return float('nan')
+        predictions = predictions[valid_indices]
+        targets = targets[valid_indices]
+    
+    # Ensure we have both classes present
+    if np.all(targets == 1) or np.all(targets == 0):
+        return float('nan')
+    
+    try:
+        return roc_auc_score(targets, predictions)
+    except:
+        return float('nan')
+
+
+# Modified Trainer class that supports DDP with full model copies and gradient accumulation
+class DDPFullTrainer:
     def __init__(
         self,
-        model: CombinedModel,
+        model: DDP,
         optimizer: torch.optim.Optimizer,
         criterion: torch.nn.Module,
         device: torch.device,
@@ -116,14 +124,38 @@ class DDPTrainer(Trainer):
         val_every: int = 500,
         rank: int = 0,
         world_size: int = 1,
+        metrics_dir: str = None
     ):
-        super().__init__(model, optimizer, criterion, device, accum_steps, print_every, val_every)
+        self.model = model
+        self.opt = optimizer
+        self.crit = criterion
+        self.device = device
+        self.accum = accum_steps
+        self.print_every = print_every
+        self.val_every = val_every
+        self.global_step = 1
         self.rank = rank
         self.world_size = world_size
-        self.device = device  # Explicitly set device attribute
+        
+        # Setup metrics saving
+        self.should_save_metrics = (self.rank == 0 and metrics_dir is not None)
+        if self.should_save_metrics:
+            import os
+            import time
+            self.metrics_dir = metrics_dir
+            os.makedirs(self.metrics_dir, exist_ok=True)
+            
+            # Create metrics filename with timestamp
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            self.metrics_filename = os.path.join(
+                self.metrics_dir, 
+                f"training_metrics_nGPU_DDP_{timestamp}.jsonl"
+            )
+            
+            print(f"Will save metrics to: {self.metrics_filename}")
     
     def _train_step(self, chunks, labels, mask):
-        """Modified training step that respects FSDP workflow"""
+        """Modified training step for DDP with full model copies"""
         running_loss = 0.0
         
         # Remove the extra dimension from chunks
@@ -133,11 +165,8 @@ class DDPTrainer(Trainer):
         # Move chunks to device 
         chunks = chunks.to(self.device)  # (N, 3, 448, 448)
         
-        # Debug info - only print once (commented out)
-        # if self.rank == 0 and self.global_step == 1:
-        #     print(f"Chunks shape after squeeze: {chunks.shape}")
-        
-        max_chunks = 8  # We want exactly 8 chunks
+        # Apply max chunks limit
+        max_chunks = 8  # Maximum number of chunks to process
         if chunks.size(0) > max_chunks:
             # Calculate the middle index
             mid_idx = chunks.size(0) // 2
@@ -152,11 +181,10 @@ class DDPTrainer(Trainer):
             
             # Extract the middle 8 chunks
             chunks = chunks[start_idx:end_idx]
-            # if self.rank == 0:  # Only print from rank 0 (commented out)
-            #     print(f"Selected middle chunks {start_idx}-{end_idx-1} from total {chunks.size(0)} chunks")
-        # Forward pass through the entire model (base + aggregator)
+        
+        # Forward pass through the entire model
         try:
-            logits = self.model(chunks)  # Combined forward pass
+            logits = self.model(chunks)  # DDP handles the forward pass
         except Exception as e:
             # Print diagnostic info and reraise
             print(f"Error in forward pass: {e}")
@@ -166,6 +194,35 @@ class DDPTrainer(Trainer):
         # Convert NumPy arrays to PyTorch tensors and move to device
         target = torch.tensor(labels, dtype=torch.float32, device=self.device)
         mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
+        
+        # Convert logits to probabilities and predictions
+        pred_probs = torch.sigmoid(logits)
+        predictions = (pred_probs > 0.5).float()
+
+        # Calculate accuracies for the specific tasks
+        acc1 = 0.0
+        acc3 = 0.0
+        acc6 = 0.0
+
+        # For 1-year cancer (index 0)
+        if mask_tensor[0]:
+            acc1 = (predictions[0, 0] == target[0]).float().item()
+        
+        # For 3-year cancer (index 1)
+        if mask_tensor[1]:
+            acc3 = (predictions[0, 1] == target[1]).float().item()
+        
+        # For 6-year cancer (index 2)
+        if mask_tensor[2]:
+            acc6 = (predictions[0, 2] == target[2]).float().item()
+
+        # Count positives for each task
+        pos_1yr = int(target[0].item() == 1) if mask_tensor[0] else 0
+        neg_1yr = int(target[0].item() == 0) if mask_tensor[0] else 0
+        pos_3yr = int(target[1].item() == 1) if mask_tensor[1] else 0
+        neg_3yr = int(target[1].item() == 0) if mask_tensor[1] else 0
+        pos_6yr = int(target[2].item() == 1) if mask_tensor[2] else 0
+        neg_6yr = int(target[2].item() == 0) if mask_tensor[2] else 0
         
         # Apply binary cross entropy to each task output
         loss = 0.0
@@ -179,18 +236,14 @@ class DDPTrainer(Trainer):
         active_tasks = mask_tensor.sum().item()
         if active_tasks > 0:
             loss = loss / active_tasks
-            
+        
         # -------------------------------------------------------
-        # Accumulate gradients locally; only sync on last step
+        # Gradient accumulation - simplify for DDP
         # -------------------------------------------------------
-        accum_step = (self.global_step - 1) % self.accum
-        sync_now = (accum_step == self.accum - 1)
-        if hasattr(self.model, "no_sync"):
-            ctx = nullcontext() if sync_now else self.model.no_sync()
-        else:
-            ctx = nullcontext()
-        with ctx:
-            loss.backward()
+        # DDP will synchronize gradients automatically, but we still want 
+        # to accumulate them locally before updating
+        loss = loss / self.accum
+        loss.backward()  # DDP handles the backward pass
         
         # Only update weights after accumulating enough gradients
         if (self.global_step) % self.accum == 0:
@@ -200,94 +253,60 @@ class DDPTrainer(Trainer):
         # Only log from rank 0
         if self.rank == 0 and (self.global_step) % self.print_every == 0:
             logging.info(f"Step {self.global_step} | Loss: {loss.item():.6f}")
+            
+            # Save metrics with exact format as example
+            if self.should_save_metrics:
+                # Get prediction values for accuracy (simplified for demonstration)
+                pred_np = logits.detach().float().cpu().numpy()[0]
+                target_np = target.cpu().numpy()
+                mask_np = mask_tensor.cpu().numpy()
+                
+                # Format metrics like the example
+                metrics_dict = {
+                    "iteration": self.global_step,
+                    "epoch": self.current_epoch,
+                    "lr": self.opt.param_groups[0]['lr'],
+                    "accumulation_step": (self.global_step - 1) % self.accum,
+                    "accum_size": self.accum,
+                    "total_loss": running_loss / max(1, active_tasks),
+                    "acc1": acc1,
+                    "acc3": acc3,
+                    "acc6": acc6,
+                    "pos_count_1yr": f"{pos_1yr}-{neg_1yr}",
+                    "pos_count_3yr": f"{pos_3yr}-{neg_3yr}",
+                    "pos_count_6yr": f"{pos_6yr}-{neg_6yr}",
+                    "type": "train"
+                }
+                
+                # Write metrics to file
+                try:
+                    with open(self.metrics_filename, 'a') as f:
+                        f.write(json.dumps(metrics_dict) + '\n')
+                except Exception as e:
+                    print(f"ERROR saving metrics: {e}")
         
         self.global_step += 1
         return running_loss / max(1, active_tasks)
     
-    def fit(self, 
-            train_loader: DataLoader,
-            train_sampler=None,
-            val_loader: DataLoader = None,
-            epochs: int = 10,
-            unfreeze_strategy: str = 'gradual'):
-        """Modified fit method with DDP support and epoch-based sampler updates"""
-        self.global_step = 1
-        
-        for epoch in range(epochs):
-            # Set the epoch for the data sampler to ensure each process gets different data
-            if train_sampler:
-                train_sampler.set_epoch(epoch)
-            
-            # Implement gradual unfreezing strategy
-            if unfreeze_strategy == 'gradual':
-                if epoch == 0:
-                    logging.info("Freezing base model")
-                    self.model.freeze_base_model()
-                elif epoch == 1:
-                    logging.info("Unfreezing last 2 blocks")
-                    self.model.unfreeze_last_n_blocks(n=2)
-                elif epoch == 2:
-                    logging.info("Unfreezing last 4 blocks")
-                    self.model.unfreeze_last_n_blocks(n=4)
-                elif epoch == 3:
-                    logging.info("Unfreezing last 6 blocks")
-                    self.model.unfreeze_last_n_blocks(n=6)
-                elif epoch >= 4:
-                    logging.info("Unfreezing entire base model")
-                    self.model.unfreeze_base_model()
-            elif unfreeze_strategy == 'none':
-                logging.info("Using frozen base model for all epochs")
-                self.model.freeze_base_model()
-            elif unfreeze_strategy == 'all':
-                logging.info("Using unfrozen base model for all epochs")
-                self.model.unfreeze_base_model()
-            
-            # Train loop
-            self.model.train()
-            epoch_loss = 0.0
-            samples_seen = 0
-            
-            for step, (chunks, labels, mask) in enumerate(train_loader, 1):
-                # Move to the right device (already handled in _train_step)
-                step_loss = self._train_step(chunks, labels, mask)
-                epoch_loss += step_loss
-                samples_seen += 1
-                
-                # Evaluate on validation set periodically
-                if val_loader and self.rank == 0 and self.global_step % self.val_every == 0:
-                    self.model.eval()
-                    metrics = self.evaluate(val_loader)
-                    # Log validation metrics
-                    log_str = f"Validation | "
-                    for metric, value in metrics.items():
-                        log_str += f"{metric}: {value:.4f} | "
-                    logging.info(log_str)
-                    self.model.train()
-            
-            # End of epoch
-            avg_epoch_loss = epoch_loss / max(1, samples_seen)
-            
-            # Only log from rank 0
-            if self.rank == 0:
-                logging.info(f"Epoch {epoch+1}/{epochs} | Avg Loss: {avg_epoch_loss:.6f}")
-                
-                # End of epoch validation
-                if val_loader:
-                    self.model.eval()
-                    metrics = self.evaluate(val_loader)
-                    # Log validation metrics
-                    log_str = f"Epoch {epoch+1} Validation | "
-                    for metric, value in metrics.items():
-                        log_str += f"{metric}: {value:.4f} | "
-                    logging.info(log_str)
-                    self.model.train()
-
     def evaluate(self, val_loader):
-        """Override parent's evaluate method to handle the mask index correctly"""
+        """Evaluate model on validation set"""
         self.model.eval()
         all_preds = []
         all_targets = []
         all_masks = []
+        running_loss = 0.0
+        samples = 0
+        
+        # For validation metrics accuracy
+        total_acc1 = 0.0
+        total_acc3 = 0.0
+        total_acc6 = 0.0
+        one_count_1yr = 0
+        zero_count_1yr = 0
+        one_count_3yr = 0
+        zero_count_3yr = 0
+        one_count_6yr = 0
+        zero_count_6yr = 0
         
         with torch.no_grad():
             for chunks, labels, mask in val_loader:
@@ -310,52 +329,217 @@ class DDPTrainer(Trainer):
                 
                 # Convert to float32 before going to CPU and numpy
                 logits = logits.float()
+                
+                # Convert NumPy arrays to PyTorch tensors for accuracy calculation
+                target = torch.tensor(labels, dtype=torch.float32, device=self.device)
+                mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
+                
+                # 1-year cancer accuracy (index 0)
+                if mask_tensor[0]:
+                    prob1 = torch.sigmoid(logits[0, 0])
+                    pred1 = (prob1 > 0.5).float()
+                    acc1 = (pred1 == target[0]).float().item()
+                    total_acc1 += acc1
+                    if target[0].item() == 1:
+                        one_count_1yr += 1
+                    else:
+                        zero_count_1yr += 1
+                
+                # 3-year cancer accuracy (index 1)
+                if mask_tensor[1]:
+                    prob3 = torch.sigmoid(logits[0, 1])
+                    pred3 = (prob3 > 0.5).float()
+                    acc3 = (pred3 == target[1]).float().item()
+                    total_acc3 += acc3
+                    if target[1].item() == 1:
+                        one_count_3yr += 1
+                    else:
+                        zero_count_3yr += 1
+                
+                # 6-year cancer accuracy (index 2)
+                if mask_tensor[2]:
+                    prob6 = torch.sigmoid(logits[0, 2])
+                    pred6 = (prob6 > 0.5).float()
+                    acc6 = (pred6 == target[2]).float().item()
+                    total_acc6 += acc6
+                    if target[2].item() == 1:
+                        one_count_6yr += 1
+                    else:
+                        zero_count_6yr += 1
+                
+                # Store predictions and targets for AUC calculation
                 all_preds.append(logits.cpu().numpy())
                 all_targets.append(labels)
                 all_masks.append(mask)
+                samples += 1
+        
+        # Calculate metrics
+        avg_acc1 = total_acc1 / max(1, (one_count_1yr + zero_count_1yr))
+        avg_acc3 = total_acc3 / max(1, (one_count_3yr + zero_count_3yr))
+        avg_acc6 = total_acc6 / max(1, (one_count_6yr + zero_count_6yr))
+        
+        # Format counts as requested
+        pos_count_1yr_str = f"{one_count_1yr}-{zero_count_1yr}"
+        pos_count_3yr_str = f"{one_count_3yr}-{zero_count_3yr}"
+        pos_count_6yr_str = f"{one_count_6yr}-{zero_count_6yr}"
         
         # Calculate metrics for each task using scikit-learn
         metrics = {}
+        metrics['acc1'] = avg_acc1
+        metrics['acc3'] = avg_acc3
+        metrics['acc6'] = avg_acc6
+        metrics['pos_count_1yr'] = pos_count_1yr_str
+        metrics['pos_count_3yr'] = pos_count_3yr_str
+        metrics['pos_count_6yr'] = pos_count_6yr_str
         
-        # Combine all predictions and targets
-        preds = np.vstack(all_preds)
-        targets = np.vstack(all_targets)
-        masks = np.vstack(all_masks)
-        
-        # For each task, calculate metrics if data available
-        for i in range(preds.shape[1]):
-            # Skip if out of bounds for mask
-            if i >= masks.shape[1]:
-                continue
+        # Save validation metrics in the same format as example
+        if self.rank == 0 and self.should_save_metrics:
+            # Same fields as the training metrics
+            val_metrics = {
+                "iteration": self.global_step,
+                "epoch": self.current_epoch,
+                "lr": self.opt.param_groups[0]['lr'],
+                "accumulation_step": (self.global_step - 1) % self.accum,
+                "accum_size": self.accum,
+                "total_loss": running_loss / max(1, samples),
+                "acc1": avg_acc1,
+                "acc3": avg_acc3,
+                "acc6": avg_acc6,
+                "pos_count_1yr": pos_count_1yr_str,
+                "pos_count_3yr": pos_count_3yr_str,
+                "pos_count_6yr": pos_count_6yr_str,
+                "type": "validation"
+            }
             
-            # Get valid indices for this task
-            valid_idx = masks[:, i].astype(bool)
-            
-            if np.sum(valid_idx) > 0:
-                task_preds = preds[valid_idx, i]
-                task_targets = targets[valid_idx, i]
-                
-                # Calculate AUC
-                try:
-                    auc = roc_auc_score(task_targets, task_preds)
-                    metrics[f'auc_task{i}'] = auc
-                except:
-                    metrics[f'auc_task{i}'] = float('nan')
-        
-        # Special handling for 6-year cancer prediction (if available)
-        six_year_idx = 2  # Index 2 corresponds to '6-year-cancer'
-        if six_year_idx < masks.shape[1] and np.any(masks[:, six_year_idx]):
-            valid_idx = masks[:, six_year_idx].astype(bool)
-            six_year_preds = preds[valid_idx, six_year_idx]
-            six_year_targets = targets[valid_idx, six_year_idx]
-            
+            # Write to file
             try:
-                auc = roc_auc_score(six_year_targets, six_year_preds)
-                metrics['auc_6year'] = auc
-            except:
-                metrics['auc_6year'] = float('nan')
+                with open(self.metrics_filename, 'a') as f:
+                    f.write(json.dumps(val_metrics) + '\n')
+            except Exception as e:
+                print(f"ERROR saving validation metrics: {e}")
         
         return metrics
+    
+    def fit(self, 
+            train_loader: DataLoader,
+            train_sampler=None,
+            val_loader: DataLoader = None,
+            epochs: int = 10,
+            unfreeze_strategy: str = 'all'):
+        """Training loop with DDP support and epoch-based sampler updates"""
+        self.global_step = 1
+        self.current_epoch = 0
+        
+        for epoch in range(epochs):
+            self.current_epoch = epoch
+            
+            # Set the epoch for the data sampler to ensure each process gets different data
+            if train_sampler:
+                train_sampler.set_epoch(epoch)
+            
+            # Implement gradual unfreezing strategy
+            if unfreeze_strategy == 'gradual':
+                if epoch == 0:
+                    logging.info("Freezing base model")
+                    if hasattr(self.model.module, 'freeze_base_model'):
+                        self.model.module.freeze_base_model()
+                elif epoch == 1:
+                    logging.info("Unfreezing last 2 blocks")
+                    if hasattr(self.model.module, 'unfreeze_last_n_blocks'):
+                        self.model.module.unfreeze_last_n_blocks(n=2)
+                elif epoch == 2:
+                    logging.info("Unfreezing last 4 blocks")
+                    if hasattr(self.model.module, 'unfreeze_last_n_blocks'):
+                        self.model.module.unfreeze_last_n_blocks(n=4)
+                elif epoch == 3:
+                    logging.info("Unfreezing last 6 blocks")
+                    if hasattr(self.model.module, 'unfreeze_last_n_blocks'):
+                        self.model.module.unfreeze_last_n_blocks(n=6)
+                elif epoch >= 4:
+                    logging.info("Unfreezing entire base model")
+                    if hasattr(self.model.module, 'unfreeze_base_model'):
+                        self.model.module.unfreeze_base_model()
+            elif unfreeze_strategy == 'none':
+                logging.info("Using frozen base model for all epochs")
+                if hasattr(self.model.module, 'freeze_base_model'):
+                    self.model.module.freeze_base_model()
+            elif unfreeze_strategy == 'all':
+                logging.info("Using unfrozen base model for all epochs")
+                if hasattr(self.model.module, 'unfreeze_base_model'):
+                    self.model.module.unfreeze_base_model()
+            
+            # Train loop
+            self.model.train()
+            epoch_loss = 0.0
+            samples_seen = 0
+            
+            for step, (chunks, labels, mask) in enumerate(train_loader, 1):
+                # Move to the right device (already handled in _train_step)
+                step_loss = self._train_step(chunks, labels, mask)
+                epoch_loss += step_loss
+                samples_seen += 1
+                
+                # Evaluate on validation set periodically
+                if val_loader and self.rank == 0 and self.global_step % self.val_every == 0:
+                    self.model.eval()
+                    metrics = self.evaluate(val_loader)
+                    
+                    # Log validation metrics
+                    log_str = f"Validation | "
+                    for metric, value in metrics.items():
+                        log_str += f"{metric}: {value:.4f} | "
+                    logging.info(log_str)
+                    
+                    # Save validation metrics to JSONL if metrics_filename exists
+                    if self.should_save_metrics:
+                        # Create metrics dict
+                        metrics_dict = {
+                            "iteration": self.global_step,
+                            "epoch": epoch,
+                            **metrics,
+                            "type": "validation"
+                        }
+                        
+                        # Write to file as a single line
+                        with open(self.metrics_filename, 'a') as f:
+                            f.write(json.dumps(metrics_dict) + '\n')
+                    
+                    self.model.train()
+            
+            # End of epoch
+            avg_epoch_loss = epoch_loss / max(1, samples_seen)
+            
+            # Only log from rank 0
+            if self.rank == 0:
+                logging.info(f"Epoch {epoch+1}/{epochs} | Avg Loss: {avg_epoch_loss:.6f}")
+                
+                # End of epoch validation
+                if val_loader:
+                    self.model.eval()
+                    metrics = self.evaluate(val_loader)
+                    
+                    # Log validation metrics
+                    log_str = f"Epoch {epoch+1} Validation | "
+                    for metric, value in metrics.items():
+                        log_str += f"{metric}: {value:.4f} | "
+                    logging.info(log_str)
+                    
+                    # Save validation metrics to JSONL
+                    if self.should_save_metrics:
+                        # Create metrics dict
+                        metrics_dict = {
+                            "iteration": self.global_step,
+                            "epoch": epoch,
+                            "end_of_epoch": True,
+                            **metrics,
+                            "type": "validation"
+                        }
+                        
+                        # Write to file as a single line
+                        with open(self.metrics_filename, 'a') as f:
+                            f.write(json.dumps(metrics_dict) + '\n')
+                    
+                    self.model.train()
 
 
 def main(args):
@@ -368,10 +552,9 @@ def main(args):
     global_rank = dist.get_rank()
     torch.cuda.set_device(local_rank)
     
-    # convenience so you can still run the script on one GPU with python run.py
-    # (torchrun will set the env vars for you)
+    # convenience so you can still run the script on one GPU
     if world_size == 1:
-        print("Single-GPU run – FSDP will act like DataParallel on one device")
+        print("Single-GPU run – DDP will run on one device")
     
     # Only rank 0 should log preparation information
     if global_rank == 0:
@@ -383,7 +566,7 @@ def main(args):
                 logging.FileHandler(os.path.join(args.output, 'training.log'))
             ]
         )
-        logging.info(f"Starting training on {world_size} GPUs")
+        logging.info(f"Starting training on {world_size} GPUs with full model copies (DDP)")
         
         # Prepare balanced validation dataset if needed
         if args.balance_val:
@@ -431,14 +614,17 @@ def main(args):
         pin_memory=True,
     )
     
-    # Validation dataloader - does not need to be sharded
-    val_loader = DataLoader(
-        val_ds, 
-        batch_size=1, 
-        shuffle=False,
-        num_workers=args.num_workers, 
-        collate_fn=lambda b: b[0]
-    )
+    # Validation dataloader - does not need to be sharded for rank 0
+    if global_rank == 0:
+        val_loader = DataLoader(
+            val_ds, 
+            batch_size=1, 
+            shuffle=False,
+            num_workers=args.num_workers, 
+            collate_fn=lambda b: b[0]
+        )
+    else:
+        val_loader = None
     
     # Calculate weights for balanced loss if needed
     if args.class_weights:
@@ -515,18 +701,9 @@ def main(args):
     # Materialize tokens properly (must come after load_state_dict but before moving to device)
     materialize_tokens_(model_ct, torch.device('cpu'))  # First materialize on CPU
 
-    # Move model_ct to device
-    model_ct = model_ct.to(device)
-
-    # Verify cls_token is properly initialized with storage
-    print(f"Cls token shape after materialization and device move: {model_ct.cls_token.shape}, " 
-          f"requires_grad: {model_ct.cls_token.requires_grad}, "
-          f"storage size: {model_ct.cls_token.storage().size()}, "
-          f"device: {model_ct.cls_token.device}")
-
     # Now build the combined model
     model = CombinedModel(
-        base_model=model_ct,          # model_ct is already on correct CUDA device
+        base_model=model_ct,          # model_ct is not yet on device
         chunk_feat_dim=768,
         hidden_dim=1024,
         num_tasks=len(label_cols),
@@ -535,10 +712,10 @@ def main(args):
         dropout_rate=args.dropout
     )
 
-    # Move the entire combined model to the device (ensures all parameters are on same device)
+    # Move the model to the device
     model = model.to(device)
     
-    # Verify all parameters are on the correct device
+    # Verify all parameters are on the correct device before DDP wrapping
     if global_rank == 0:
         print(f"Verifying all parameters are on {device}")
     for name, param in model.named_parameters():
@@ -550,30 +727,16 @@ def main(args):
     for param in model.parameters():
         param.requires_grad = True
 
-    # Now it's safe to wrap with FSDP
-    mp_policy = MixedPrecision(param_dtype=torch.bfloat16,
-                              reduce_dtype=torch.bfloat16,
-                              buffer_dtype=torch.bfloat16)
-    
-    transformer_wrap_policy = partial(
-        transformer_auto_wrap_policy,
-        transformer_layer_cls={
-            TransformerEncoderLayer,
-            TransformerDecoderLayer,
-            # Add custom transformer blocks if needed
-        }
-    )
-
-    model = FSDP(
+    # Now wrap model with DDP
+    model = DDP(
         model,
-        auto_wrap_policy=transformer_wrap_policy,
-        sharding_strategy=ShardingStrategy.FULL_SHARD,
-        mixed_precision=mp_policy,
-        device_id=local_rank,  # Use local_rank instead of device
+        device_ids=[local_rank],
+        output_device=local_rank,
+        find_unused_parameters=True
     )
 
     # Create parameter groups with different learning rates
-    # Define our own parameter groups manually after FSDP wrapping
+    # Define our own parameter groups manually after DDP wrapping
     main_lr = args.lr
     base_lr = args.lr * 0.1
 
@@ -581,10 +744,10 @@ def main(args):
     base_params = []
     agg_params = []
 
-    # We need to name the parameters more specifically
+    # We need to name the parameters more specifically - Note the module. prefix
     for name, param in model.named_parameters():
         if param.requires_grad:
-            if 'base' in name:
+            if 'module.base' in name:
                 base_params.append(param)
             else:
                 agg_params.append(param)
@@ -615,8 +778,12 @@ def main(args):
     else:
         criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
     
+    # Force unfreeze strategy to "all" to avoid DDP issues
+    args.unfreeze_strategy = "all"
+    logging.info("Setting unfreeze_strategy to 'all' to avoid DDP synchronization issues")
+
     # Create the trainer
-    trainer = DDPTrainer(
+    trainer = DDPFullTrainer(
         model=model,
         optimizer=optimizer,
         criterion=criterion,
@@ -625,7 +792,8 @@ def main(args):
         print_every=args.print_every,
         val_every=args.val_every,
         rank=global_rank,
-        world_size=world_size
+        world_size=world_size,
+        metrics_dir=args.metrics_dir if global_rank == 0 else None
     )
     
     # Train the model
@@ -642,9 +810,9 @@ def main(args):
         checkpoint_dir = os.path.join(args.output, 'checkpoints')
         os.makedirs(checkpoint_dir, exist_ok=True)
         
-        # Save the model state dict
+        # Save the model state dict - note we need to extract the module to save
         torch.save(
-            model.state_dict(), 
+            model.module.state_dict(), 
             os.path.join(checkpoint_dir, f'model_final.pt')
         )
         
@@ -656,7 +824,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Multi-GPU Training with FSDP")
+    parser = argparse.ArgumentParser(description="Multi-GPU Training with DDP (Full Model Copies)")
     parser.add_argument("--csv", type=str, default="/rsrch1/ip/msalehjahromi/codes/FineTune/nlst_event_train_val_test_.csv", 
                         help="Path to the CSV file containing dataset information")
     parser.add_argument("--balance-val", action="store_true", 
@@ -683,7 +851,7 @@ if __name__ == "__main__":
                         help="Dropout rate in the transformer aggregator")
     parser.add_argument("--unfreeze-strategy", type=str, default="gradual", choices=["gradual", "none", "all"], 
                         help="Strategy for unfreezing the base model")
-    parser.add_argument("--output", type=str, default="./output", 
+    parser.add_argument("--output", type=str, default="./output_ddp_full", 
                         help="Output directory for logs and checkpoints")
     parser.add_argument("--print-every", type=int, default=100, 
                         help="Print training stats every N steps")
@@ -705,4 +873,4 @@ if __name__ == "__main__":
         with open(os.path.join(args.output, '.packages_installed'), 'w') as f:
             f.write('Packages installed\n')
     
-    main(args) 
+    main(args)

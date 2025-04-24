@@ -43,7 +43,7 @@ spec:
             "--node_rank=0", 
             "--master_addr=$(MASTER_ADDR)",
             "--master_port=$(MASTER_PORT)",
-            "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/2_run_fineTune_ddp_launcher.py"
+            "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_ddp_launcher.py"
           ]
           workingDir: "/rsrch1/ip/msalehjahromi"
           env:

@@ -175,7 +175,8 @@ def main(args):
     os.makedirs(metrics_dir, exist_ok=True)
         
     # Path to the training script
-    script_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/2_run_fineTune_ddp.py"
+    # script_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_ddp.py"
+    script_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_ddp_full.py"
     
     # Get a random port
     port = _get_available_port()
@@ -236,7 +237,7 @@ if __name__ == "__main__":
                         help="Number of workers for data loading")
     
     # Training parameters
-    parser.add_argument("--accum-steps", type=int, default=2, 
+    parser.add_argument("--accum-steps", type=int, default=20, 
                         help="Number of steps to accumulate gradients over")
     parser.add_argument("--epochs", type=int, default=10, 
                         help="Number of epochs to train for")
@@ -272,7 +273,7 @@ if __name__ == "__main__":
     # Add metrics directory parameter
     parser.add_argument("--metrics-dir", type=str, 
                       default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
-                      help="Directory to save training metrics YAML file")
+                      help="Directory to save training metrics")
     
     args = parser.parse_args()
     
