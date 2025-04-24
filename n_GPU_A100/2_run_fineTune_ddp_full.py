@@ -137,6 +137,9 @@ class DDPFullTrainer:
         self.rank = rank
         self.world_size = world_size
         
+        # Initialize tracking variables for metrics
+        self.reset_metrics()
+        
         # Setup metrics saving
         self.should_save_metrics = (self.rank == 0 and metrics_dir is not None)
         if self.should_save_metrics:
@@ -154,39 +157,51 @@ class DDPFullTrainer:
             
             print(f"Will save metrics to: {self.metrics_filename}")
     
+    def reset_metrics(self):
+        """Reset tracking variables for metrics"""
+        self.total_loss = 0.0
+        self.samples_seen = 0
+        
+        # Accuracy tracking
+        self.correct_1yr = 0
+        self.correct_3yr = 0
+        self.correct_6yr = 0
+        
+        # Sample counting
+        self.total_1yr_samples = 0
+        self.total_3yr_samples = 0
+        self.total_6yr_samples = 0
+        
+        # Positive sample tracking
+        self.pos_1yr = 0
+        self.pos_3yr = 0
+        self.pos_6yr = 0
+    
     def _train_step(self, chunks, labels, mask):
         """Modified training step for DDP with full model copies"""
         running_loss = 0.0
         
         # Remove the extra dimension from chunks
-        # Shape from (N, 1, 3, 448, 448) to (N, 3, 448, 448)
         chunks = chunks.squeeze(1)
         
         # Move chunks to device 
-        chunks = chunks.to(self.device)  # (N, 3, 448, 448)
+        chunks = chunks.to(self.device)
         
         # Apply max chunks limit
-        max_chunks = 8  # Maximum number of chunks to process
+        max_chunks = 8
         if chunks.size(0) > max_chunks:
-            # Calculate the middle index
             mid_idx = chunks.size(0) // 2
-            # Calculate the start and end indices to extract 8 chunks centered on the middle
-            start_idx = max(0, mid_idx - max_chunks // 2)  # 4 chunks before the middle
-            end_idx = min(chunks.size(0), start_idx + max_chunks)  # Take exactly 8 chunks from start_idx
-            
-            # Adjust if we would go past the end of the volume
+            start_idx = max(0, mid_idx - max_chunks // 2)
+            end_idx = min(chunks.size(0), start_idx + max_chunks)
             if end_idx > chunks.size(0):
                 end_idx = chunks.size(0)
-                start_idx = max(0, end_idx - max_chunks)  # Move start back to get 8 chunks
-            
-            # Extract the middle 8 chunks
+                start_idx = max(0, end_idx - max_chunks)
             chunks = chunks[start_idx:end_idx]
         
         # Forward pass through the entire model
         try:
-            logits = self.model(chunks)  # DDP handles the forward pass
+            logits = self.model(chunks)
         except Exception as e:
-            # Print diagnostic info and reraise
             print(f"Error in forward pass: {e}")
             print(f"Chunks shape: {chunks.shape}")
             raise
@@ -199,35 +214,60 @@ class DDPFullTrainer:
         pred_probs = torch.sigmoid(logits)
         predictions = (pred_probs > 0.5).float()
 
-        # Calculate accuracies for the specific tasks
+        # For current sample metrics (needed for JSON output)
         acc1 = 0.0
-        acc3 = 0.0
+        acc3 = 0.0 
         acc6 = 0.0
+        pos_1yr = 0
+        neg_1yr = 0
+        pos_3yr = 0
+        neg_3yr = 0
+        pos_6yr = 0
+        neg_6yr = 0
 
-        # For 1-year cancer (index 0)
+        # Update metrics for 1-year cancer (index 0)
         if mask_tensor[0]:
-            acc1 = (predictions[0, 0] == target[0]).float().item()
+            is_correct = (predictions[0, 0] == target[0]).float().item()
+            self.correct_1yr += is_correct
+            self.total_1yr_samples += 1
+            is_positive = (target[0].item() == 1)
+            self.pos_1yr += int(is_positive)
+            
+            # For current sample
+            acc1 = is_correct
+            pos_1yr = int(is_positive)
+            neg_1yr = int(not is_positive)
         
-        # For 3-year cancer (index 1)
+        # Update metrics for 3-year cancer (index 1)
         if mask_tensor[1]:
-            acc3 = (predictions[0, 1] == target[1]).float().item()
+            is_correct = (predictions[0, 1] == target[1]).float().item()
+            self.correct_3yr += is_correct
+            self.total_3yr_samples += 1
+            is_positive = (target[1].item() == 1)
+            self.pos_3yr += int(is_positive)
+            
+            # For current sample
+            acc3 = is_correct
+            pos_3yr = int(is_positive)
+            neg_3yr = int(not is_positive)
         
-        # For 6-year cancer (index 2)
+        # Update metrics for 6-year cancer (index 2)
         if mask_tensor[2]:
-            acc6 = (predictions[0, 2] == target[2]).float().item()
-
-        # Count positives for each task
-        pos_1yr = int(target[0].item() == 1) if mask_tensor[0] else 0
-        neg_1yr = int(target[0].item() == 0) if mask_tensor[0] else 0
-        pos_3yr = int(target[1].item() == 1) if mask_tensor[1] else 0
-        neg_3yr = int(target[1].item() == 0) if mask_tensor[1] else 0
-        pos_6yr = int(target[2].item() == 1) if mask_tensor[2] else 0
-        neg_6yr = int(target[2].item() == 0) if mask_tensor[2] else 0
+            is_correct = (predictions[0, 2] == target[2]).float().item()
+            self.correct_6yr += is_correct
+            self.total_6yr_samples += 1
+            is_positive = (target[2].item() == 1)
+            self.pos_6yr += int(is_positive)
+            
+            # For current sample
+            acc6 = is_correct
+            pos_6yr = int(is_positive)
+            neg_6yr = int(not is_positive)
         
         # Apply binary cross entropy to each task output
         loss = 0.0
         for i in range(logits.size(1)):
-            if mask_tensor[i]:  # Only calculate loss for non-missing values
+            if mask_tensor[i]:
                 task_loss = self.crit(logits[0, i:i+1], target[i:i+1])
                 loss += task_loss
                 running_loss += task_loss.item()
@@ -236,14 +276,12 @@ class DDPFullTrainer:
         active_tasks = mask_tensor.sum().item()
         if active_tasks > 0:
             loss = loss / active_tasks
+            self.total_loss += running_loss / active_tasks
+            self.samples_seen += 1
         
-        # -------------------------------------------------------
-        # Gradient accumulation - simplify for DDP
-        # -------------------------------------------------------
-        # DDP will synchronize gradients automatically, but we still want 
-        # to accumulate them locally before updating
+        # Gradient accumulation
         loss = loss / self.accum
-        loss.backward()  # DDP handles the backward pass
+        loss.backward()
         
         # Only update weights after accumulating enough gradients
         if (self.global_step) % self.accum == 0:
@@ -252,29 +290,36 @@ class DDPFullTrainer:
         
         # Only log from rank 0
         if self.rank == 0 and (self.global_step) % self.print_every == 0:
-            logging.info(f"Step {self.global_step} | Loss: {loss.item():.6f}")
+            # Calculate cumulative metrics for logging
+            avg_loss = self.total_loss / max(1, self.samples_seen)
+            avg_acc1 = self.correct_1yr / max(1, self.total_1yr_samples)
+            avg_acc3 = self.correct_3yr / max(1, self.total_3yr_samples)
+            avg_acc6 = self.correct_6yr / max(1, self.total_6yr_samples)
+            
+            # Calculate negative counts
+            neg_1yr_total = self.total_1yr_samples - self.pos_1yr
+            neg_3yr_total = self.total_3yr_samples - self.pos_3yr
+            neg_6yr_total = self.total_6yr_samples - self.pos_6yr
+            
+            logging.info(f"Step {self.global_step} | Loss: {avg_loss:.6f} | " 
+                     f"Acc1: {avg_acc1:.4f} | Acc3: {avg_acc3:.4f} | Acc6: {avg_acc6:.4f} | "
+                     f"1yr: {self.pos_1yr}-{neg_1yr_total} | 3yr: {self.pos_3yr}-{neg_3yr_total} | 6yr: {self.pos_6yr}-{neg_6yr_total}")
             
             # Save metrics with exact format as example
             if self.should_save_metrics:
-                # Get prediction values for accuracy (simplified for demonstration)
-                pred_np = logits.detach().float().cpu().numpy()[0]
-                target_np = target.cpu().numpy()
-                mask_np = mask_tensor.cpu().numpy()
-                
-                # Format metrics like the example
                 metrics_dict = {
                     "iteration": self.global_step,
                     "epoch": self.current_epoch,
                     "lr": self.opt.param_groups[0]['lr'],
                     "accumulation_step": (self.global_step - 1) % self.accum,
                     "accum_size": self.accum,
-                    "total_loss": running_loss / max(1, active_tasks),
-                    "acc1": acc1,
-                    "acc3": acc3,
-                    "acc6": acc6,
-                    "pos_count_1yr": f"{pos_1yr}-{neg_1yr}",
-                    "pos_count_3yr": f"{pos_3yr}-{neg_3yr}",
-                    "pos_count_6yr": f"{pos_6yr}-{neg_6yr}",
+                    "total_loss": avg_loss,
+                    "acc1": avg_acc1,
+                    "acc3": avg_acc3,
+                    "acc6": avg_acc6,
+                    "pos_count_1yr": f"{self.pos_1yr}-{neg_1yr_total}",
+                    "pos_count_3yr": f"{self.pos_3yr}-{neg_3yr_total}",
+                    "pos_count_6yr": f"{self.pos_6yr}-{neg_6yr_total}",
                     "type": "train"
                 }
                 
@@ -430,8 +475,14 @@ class DDPFullTrainer:
         self.global_step = 1
         self.current_epoch = 0
         
+        # Reset metrics at the start of training
+        self.reset_metrics()
+        
         for epoch in range(epochs):
             self.current_epoch = epoch
+            
+            # Reset metrics at the start of each epoch
+            self.reset_metrics()
             
             # Set the epoch for the data sampler to ensure each process gets different data
             if train_sampler:
