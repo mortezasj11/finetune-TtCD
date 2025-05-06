@@ -111,6 +111,111 @@ def calculate_auc(predictions, targets, mask=None):
         return float('nan')
 
 
+# metrics_logger.py
+import logging
+import json
+import os
+import time
+from typing import Dict, Any
+
+class MetricsLogger:
+    def __init__(self, rank: int, metrics_dir: str = None):
+        self.rank = rank
+        self.should_save_metrics = (rank == 0 and metrics_dir is not None)
+        
+        if self.should_save_metrics:
+            self.metrics_dir = metrics_dir
+            os.makedirs(self.metrics_dir, exist_ok=True)
+            
+            # Create metrics filename with timestamp
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            self.metrics_filename = os.path.join(
+                self.metrics_dir, 
+                f"training_metrics_nGPU_DDP_{timestamp}.jsonl"
+            )
+            
+            print(f"Will save metrics to: {self.metrics_filename}")
+    
+    def log_metrics(self, metrics_dict: Dict[str, Any]):
+        """Log metrics to file and console"""
+        if not self.should_save_metrics:
+            return
+            
+        # Log to console
+        log_str = " | ".join([f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}" 
+                             for k, v in metrics_dict.items()])
+        logging.info(log_str)
+        
+        # Save to file
+        try:
+            with open(self.metrics_filename, 'a') as f:
+                f.write(json.dumps(metrics_dict) + '\n')
+        except Exception as e:
+            print(f"ERROR saving metrics: {e}")
+
+class MetricsCalculator:
+    def __init__(self):
+        self.reset()
+    
+    def reset(self):
+        """Reset all metrics"""
+        self.total_loss = 0.0
+        self.samples_seen = 0
+        
+        # Accuracy tracking
+        self.correct_1yr = 0
+        self.correct_3yr = 0
+        self.correct_6yr = 0
+        
+        # Sample counting
+        self.total_1yr_samples = 0
+        self.total_3yr_samples = 0
+        self.total_6yr_samples = 0
+        
+        # Positive sample tracking
+        self.pos_1yr = 0
+        self.pos_3yr = 0
+        self.pos_6yr = 0
+    
+    def update_metrics(self, predictions, targets, mask, loss):
+        """Update metrics for a single batch"""
+        # Update loss
+        self.total_loss += loss
+        self.samples_seen += 1
+        
+        # Update accuracy and counts for each time point
+        if mask[0]:  # 1-year
+            is_correct = (predictions[0] == targets[0]).float().item()
+            self.correct_1yr += is_correct
+            self.total_1yr_samples += 1
+            self.pos_1yr += int(targets[0].item() == 1)
+            
+        if mask[1]:  # 3-year
+            is_correct = (predictions[1] == targets[1]).float().item()
+            self.correct_3yr += is_correct
+            self.total_3yr_samples += 1
+            self.pos_3yr += int(targets[1].item() == 1)
+            
+        if mask[2]:  # 6-year
+            is_correct = (predictions[2] == targets[2]).float().item()
+            self.correct_6yr += is_correct
+            self.total_6yr_samples += 1
+            self.pos_6yr += int(targets[2].item() == 1)
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        """Calculate and return current metrics"""
+        metrics = {
+            "total_loss": self.total_loss / max(1, self.samples_seen),
+            "acc1": self.correct_1yr / max(1, self.total_1yr_samples),
+            "acc3": self.correct_3yr / max(1, self.total_3yr_samples),
+            "acc6": self.correct_6yr / max(1, self.total_6yr_samples),
+            "pos_count_1yr": f"{self.pos_1yr}-{self.total_1yr_samples - self.pos_1yr}",
+            "pos_count_3yr": f"{self.pos_3yr}-{self.total_3yr_samples - self.pos_3yr}",
+            "pos_count_6yr": f"{self.pos_6yr}-{self.total_6yr_samples - self.pos_6yr}"
+        }
+        return metrics
+
+
 # Modified Trainer class that supports DDP with full model copies and gradient accumulation
 class DDPFullTrainer:
     def __init__(
@@ -137,55 +242,13 @@ class DDPFullTrainer:
         self.rank = rank
         self.world_size = world_size
         
-        # Initialize tracking variables for metrics
-        self.reset_metrics()
-        
-        # Setup metrics saving
-        self.should_save_metrics = (self.rank == 0 and metrics_dir is not None)
-        if self.should_save_metrics:
-            import os
-            import time
-            self.metrics_dir = metrics_dir
-            os.makedirs(self.metrics_dir, exist_ok=True)
-            
-            # Create metrics filename with timestamp
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            self.metrics_filename = os.path.join(
-                self.metrics_dir, 
-                f"training_metrics_nGPU_DDP_{timestamp}.jsonl"
-            )
-            
-            print(f"Will save metrics to: {self.metrics_filename}")
-    
-    def reset_metrics(self):
-        """Reset tracking variables for metrics"""
-        self.total_loss = 0.0
-        self.samples_seen = 0
-        
-        # Accuracy tracking
-        self.correct_1yr = 0
-        self.correct_3yr = 0
-        self.correct_6yr = 0
-        
-        # Sample counting
-        self.total_1yr_samples = 0
-        self.total_3yr_samples = 0
-        self.total_6yr_samples = 0
-        
-        # Positive sample tracking
-        self.pos_1yr = 0
-        self.pos_3yr = 0
-        self.pos_6yr = 0
+        # Initialize metrics components
+        self.metrics_logger = MetricsLogger(rank, metrics_dir)
+        self.metrics_calculator = MetricsCalculator()
     
     def _train_step(self, chunks, labels, mask):
-        """Modified training step for DDP with full model copies"""
-        running_loss = 0.0
-        
-        # Remove the extra dimension from chunks
-        chunks = chunks.squeeze(1)
-        
-        # Move chunks to device 
-        chunks = chunks.to(self.device)
+        """Single training step"""
+        chunks = chunks.squeeze(1).to(self.device)
         
         # Apply max chunks limit
         max_chunks = 8
@@ -193,145 +256,55 @@ class DDPFullTrainer:
             mid_idx = chunks.size(0) // 2
             start_idx = max(0, mid_idx - max_chunks // 2)
             end_idx = min(chunks.size(0), start_idx + max_chunks)
-            if end_idx > chunks.size(0):
-                end_idx = chunks.size(0)
-                start_idx = max(0, end_idx - max_chunks)
             chunks = chunks[start_idx:end_idx]
         
-        # Forward pass through the entire model
-        try:
-            logits = self.model(chunks)
-        except Exception as e:
-            print(f"Error in forward pass: {e}")
-            print(f"Chunks shape: {chunks.shape}")
-            raise
-
-        # Convert NumPy arrays to PyTorch tensors and move to device
+        # Forward pass
+        logits = self.model(chunks)
+        
+        # Convert to tensors
         target = torch.tensor(labels, dtype=torch.float32, device=self.device)
         mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
         
-        # Convert logits to probabilities and predictions
-        pred_probs = torch.sigmoid(logits)
-        predictions = (pred_probs > 0.5).float()
-
-        # For current sample metrics (needed for JSON output)
-        acc1 = 0.0
-        acc3 = 0.0 
-        acc6 = 0.0
-        pos_1yr = 0
-        neg_1yr = 0
-        pos_3yr = 0
-        neg_3yr = 0
-        pos_6yr = 0
-        neg_6yr = 0
-
-        # Update metrics for 1-year cancer (index 0)
-        if mask_tensor[0]:
-            is_correct = (predictions[0, 0] == target[0]).float().item()
-            self.correct_1yr += is_correct
-            self.total_1yr_samples += 1
-            is_positive = (target[0].item() == 1)
-            self.pos_1yr += int(is_positive)
-            
-            # For current sample
-            acc1 = is_correct
-            pos_1yr = int(is_positive)
-            neg_1yr = int(not is_positive)
-        
-        # Update metrics for 3-year cancer (index 1)
-        if mask_tensor[1]:
-            is_correct = (predictions[0, 1] == target[1]).float().item()
-            self.correct_3yr += is_correct
-            self.total_3yr_samples += 1
-            is_positive = (target[1].item() == 1)
-            self.pos_3yr += int(is_positive)
-            
-            # For current sample
-            acc3 = is_correct
-            pos_3yr = int(is_positive)
-            neg_3yr = int(not is_positive)
-        
-        # Update metrics for 6-year cancer (index 2)
-        if mask_tensor[2]:
-            is_correct = (predictions[0, 2] == target[2]).float().item()
-            self.correct_6yr += is_correct
-            self.total_6yr_samples += 1
-            is_positive = (target[2].item() == 1)
-            self.pos_6yr += int(is_positive)
-            
-            # For current sample
-            acc6 = is_correct
-            pos_6yr = int(is_positive)
-            neg_6yr = int(not is_positive)
-        
-        # Apply binary cross entropy to each task output
+        # Calculate loss
         loss = 0.0
         for i in range(logits.size(1)):
             if mask_tensor[i]:
                 task_loss = self.crit(logits[0, i:i+1], target[i:i+1])
                 loss += task_loss
-                running_loss += task_loss.item()
         
-        # Normalize loss by number of active tasks
+        # Normalize loss
         active_tasks = mask_tensor.sum().item()
         if active_tasks > 0:
             loss = loss / active_tasks
-            self.total_loss += running_loss / active_tasks
-            self.samples_seen += 1
         
         # Gradient accumulation
         loss = loss / self.accum
         loss.backward()
         
-        # Only update weights after accumulating enough gradients
+        # Update weights
         if (self.global_step) % self.accum == 0:
             self.opt.step()
             self.opt.zero_grad()
         
-        # Only log from rank 0
+        # Update metrics
+        predictions = (torch.sigmoid(logits) > 0.5).float()
+        self.metrics_calculator.update_metrics(predictions[0], target, mask, loss.item())
+        
+        # Log metrics if needed
         if self.rank == 0 and (self.global_step) % self.print_every == 0:
-            # Calculate cumulative metrics for logging
-            avg_loss = self.total_loss / max(1, self.samples_seen)
-            avg_acc1 = self.correct_1yr / max(1, self.total_1yr_samples)
-            avg_acc3 = self.correct_3yr / max(1, self.total_3yr_samples)
-            avg_acc6 = self.correct_6yr / max(1, self.total_6yr_samples)
-            
-            # Calculate negative counts
-            neg_1yr_total = self.total_1yr_samples - self.pos_1yr
-            neg_3yr_total = self.total_3yr_samples - self.pos_3yr
-            neg_6yr_total = self.total_6yr_samples - self.pos_6yr
-            
-            logging.info(f"Step {self.global_step} | Loss: {avg_loss:.6f} | " 
-                     f"Acc1: {avg_acc1:.4f} | Acc3: {avg_acc3:.4f} | Acc6: {avg_acc6:.4f} | "
-                     f"1yr: {self.pos_1yr}-{neg_1yr_total} | 3yr: {self.pos_3yr}-{neg_3yr_total} | 6yr: {self.pos_6yr}-{neg_6yr_total}")
-            
-            # Save metrics with exact format as example
-            if self.should_save_metrics:
-                metrics_dict = {
-                    "iteration": self.global_step,
-                    "epoch": self.current_epoch,
-                    "lr": self.opt.param_groups[0]['lr'],
-                    "accumulation_step": (self.global_step - 1) % self.accum,
-                    "accum_size": self.accum,
-                    "total_loss": avg_loss,
-                    "acc1": avg_acc1,
-                    "acc3": avg_acc3,
-                    "acc6": avg_acc6,
-                    "pos_count_1yr": f"{self.pos_1yr}-{neg_1yr_total}",
-                    "pos_count_3yr": f"{self.pos_3yr}-{neg_3yr_total}",
-                    "pos_count_6yr": f"{self.pos_6yr}-{neg_6yr_total}",
-                    "type": "train"
-                }
-                
-                # Write metrics to file
-                try:
-                    with open(self.metrics_filename, 'a') as f:
-                        f.write(json.dumps(metrics_dict) + '\n')
-                except Exception as e:
-                    print(f"ERROR saving metrics: {e}")
+            metrics = self.metrics_calculator.get_metrics()
+            metrics.update({
+                "iteration": self.global_step,
+                "epoch": self.current_epoch,
+                "lr": self.opt.param_groups[0]['lr'],
+                "accumulation_step": (self.global_step - 1) % self.accum,
+                "accum_size": self.accum,
+                "type": "train"
+            })
+            self.metrics_logger.log_metrics(metrics)
         
         self.global_step += 1
-        return running_loss / max(1, active_tasks)
+        return loss.item()
     
     def evaluate(self, val_loader):
         """Evaluate model on validation set"""
@@ -438,7 +411,7 @@ class DDPFullTrainer:
         metrics['pos_count_6yr'] = pos_count_6yr_str
         
         # Save validation metrics in the same format as example
-        if self.rank == 0 and self.should_save_metrics:
+        if self.rank == 0:
             # Same fields as the training metrics
             val_metrics = {
                 "iteration": self.global_step,
@@ -457,140 +430,68 @@ class DDPFullTrainer:
             }
             
             # Write to file
-            try:
-                with open(self.metrics_filename, 'a') as f:
-                    f.write(json.dumps(val_metrics) + '\n')
-            except Exception as e:
-                print(f"ERROR saving validation metrics: {e}")
+            self.metrics_logger.log_metrics(val_metrics)
         
         return metrics
     
-    def fit(self, 
-            train_loader: DataLoader,
-            train_sampler=None,
-            val_loader: DataLoader = None,
-            epochs: int = 10,
-            unfreeze_strategy: str = 'all'):
-        """Training loop with DDP support and epoch-based sampler updates"""
+    def fit(self, train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
         self.global_step = 1
         self.current_epoch = 0
         
-        # Reset metrics at the start of training
-        self.reset_metrics()
-        
         for epoch in range(epochs):
             self.current_epoch = epoch
+            self.metrics_calculator.reset()
             
-            # Reset metrics at the start of each epoch
-            self.reset_metrics()
-            
-            # Set the epoch for the data sampler to ensure each process gets different data
             if train_sampler:
                 train_sampler.set_epoch(epoch)
             
-            # Implement gradual unfreezing strategy
-            if unfreeze_strategy == 'gradual':
-                if epoch == 0:
-                    logging.info("Freezing base model")
-                    if hasattr(self.model.module, 'freeze_base_model'):
-                        self.model.module.freeze_base_model()
-                elif epoch == 1:
-                    logging.info("Unfreezing last 2 blocks")
-                    if hasattr(self.model.module, 'unfreeze_last_n_blocks'):
-                        self.model.module.unfreeze_last_n_blocks(n=2)
-                elif epoch == 2:
-                    logging.info("Unfreezing last 4 blocks")
-                    if hasattr(self.model.module, 'unfreeze_last_n_blocks'):
-                        self.model.module.unfreeze_last_n_blocks(n=4)
-                elif epoch == 3:
-                    logging.info("Unfreezing last 6 blocks")
-                    if hasattr(self.model.module, 'unfreeze_last_n_blocks'):
-                        self.model.module.unfreeze_last_n_blocks(n=6)
-                elif epoch >= 4:
-                    logging.info("Unfreezing entire base model")
-                    if hasattr(self.model.module, 'unfreeze_base_model'):
-                        self.model.module.unfreeze_base_model()
-            elif unfreeze_strategy == 'none':
-                logging.info("Using frozen base model for all epochs")
-                if hasattr(self.model.module, 'freeze_base_model'):
-                    self.model.module.freeze_base_model()
-            elif unfreeze_strategy == 'all':
-                logging.info("Using unfrozen base model for all epochs")
-                if hasattr(self.model.module, 'unfreeze_base_model'):
-                    self.model.module.unfreeze_base_model()
+            # Handle unfreezing strategy
+            self._handle_unfreezing(epoch, unfreeze_strategy)
             
-            # Train loop
+            # Training loop
             self.model.train()
-            epoch_loss = 0.0
-            samples_seen = 0
-            
             for step, (chunks, labels, mask) in enumerate(train_loader, 1):
-                # Move to the right device (already handled in _train_step)
-                step_loss = self._train_step(chunks, labels, mask)
-                epoch_loss += step_loss
-                samples_seen += 1
+                self._train_step(chunks, labels, mask)
                 
-                # Evaluate on validation set periodically
+                # Validation
                 if val_loader and self.rank == 0 and self.global_step % self.val_every == 0:
-                    self.model.eval()
-                    metrics = self.evaluate(val_loader)
-                    
-                    # Log validation metrics
-                    log_str = f"Validation | "
-                    for metric, value in metrics.items():
-                        log_str += f"{metric}: {value:.4f} | "
-                    logging.info(log_str)
-                    
-                    # Save validation metrics to JSONL if metrics_filename exists
-                    if self.should_save_metrics:
-                        # Create metrics dict
-                        metrics_dict = {
-                            "iteration": self.global_step,
-                            "epoch": epoch,
-                            **metrics,
-                            "type": "validation"
-                        }
-                        
-                        # Write to file as a single line
-                        with open(self.metrics_filename, 'a') as f:
-                            f.write(json.dumps(metrics_dict) + '\n')
-                    
-                    self.model.train()
+                    self._run_validation(val_loader)
+
+    def _handle_unfreezing(self, epoch, unfreeze_strategy):
+        """Handle unfreezing of model parameters based on strategy and epoch"""
+        # Skip handling if rank is not 0 (to avoid duplicate logs)
+        if self.rank == 0:
+            if unfreeze_strategy == 'all':
+                # All parameters already unfrozen in DDP mode
+                if epoch == 0:
+                    print(f"Epoch {epoch+1}: All parameters already unfrozen (strategy: {unfreeze_strategy})")
+            elif unfreeze_strategy == 'none':
+                # Parameters should remain frozen - verify but don't change
+                if epoch == 0:
+                    print(f"Epoch {epoch+1}: Keeping base model parameters frozen (strategy: {unfreeze_strategy})")
+            elif unfreeze_strategy == 'gradual':
+                # Gradual unfreezing not implemented in DDP mode
+                if epoch == 0:
+                    print(f"Epoch {epoch+1}: Gradual unfreezing not implemented in DDP mode, all parameters unfrozen")
+
+    def _run_validation(self, val_loader):
+        """Run validation and log results"""
+        if self.rank == 0:
+            print(f"\nRunning validation at step {self.global_step}...")
+            self.model.eval()
+            metrics = self.evaluate(val_loader)
+            self.model.train()
             
-            # End of epoch
-            avg_epoch_loss = epoch_loss / max(1, samples_seen)
-            
-            # Only log from rank 0
-            if self.rank == 0:
-                logging.info(f"Epoch {epoch+1}/{epochs} | Avg Loss: {avg_epoch_loss:.6f}")
-                
-                # End of epoch validation
-                if val_loader:
-                    self.model.eval()
-                    metrics = self.evaluate(val_loader)
-                    
-                    # Log validation metrics
-                    log_str = f"Epoch {epoch+1} Validation | "
-                    for metric, value in metrics.items():
-                        log_str += f"{metric}: {value:.4f} | "
-                    logging.info(log_str)
-                    
-                    # Save validation metrics to JSONL
-                    if self.should_save_metrics:
-                        # Create metrics dict
-                        metrics_dict = {
-                            "iteration": self.global_step,
-                            "epoch": epoch,
-                            "end_of_epoch": True,
-                            **metrics,
-                            "type": "validation"
-                        }
-                        
-                        # Write to file as a single line
-                        with open(self.metrics_filename, 'a') as f:
-                            f.write(json.dumps(metrics_dict) + '\n')
-                    
-                    self.model.train()
+            # Log validation metrics
+            val_metrics = metrics.copy()
+            val_metrics.update({
+                "iteration": self.global_step,
+                "epoch": self.current_epoch,
+                "lr": self.opt.param_groups[0]['lr'],
+                "type": "validation"
+            })
+            self.metrics_logger.log_metrics(val_metrics)
+            print(f"Validation complete at step {self.global_step}\n")
 
 
 def main(args):
