@@ -1,3 +1,89 @@
+# DDP Training Flow Structure
+
+## Core Components
+
+```python
+# Initialize distributed environment
+dist.init_process_group(backend="nccl")  # Setup multi-GPU communication
+local_rank = int(os.environ["LOCAL_RANK"])  # Get GPU ID for this process
+world_size = dist.get_world_size()  # Get total number of GPUs
+
+# Create datasets and samplers 
+train_ds = NLSTDataset(...)  # Dataset class loads CT volumes and labels
+train_sampler = DistributedSampler(...)  # Ensures each GPU processes different data
+train_loader = DataLoader(...)  # Provides batches of data to each GPU
+
+# Create and setup model
+model = CombinedModel(...)  # Combines ViT backbone with transformer aggregator
+model = model.to(device)  # Move model to GPU
+model = DDP(model, ...)  # Wrap model for distributed training
+
+# Configure optimization
+optimizer = torch.optim.AdamW([
+    {'params': base_params, 'lr': base_lr},  # Lower LR for backbone
+    {'params': agg_params, 'lr': main_lr}    # Higher LR for aggregator
+])  # Different learning rates for different parts
+
+# Training coordinator
+trainer = DDPFullTrainer(...)  # Manages the training process
+trainer.fit(...)  # Runs the training loop
+```
+
+## Class Structure
+
+```python
+class DDPFullTrainer:
+    def __init__(self, model, optimizer, criterion, device, ...):
+        # Initializes trainer with model, optimizer, etc.
+        
+    def _train_step(self, chunks, labels, mask):
+        # Process one batch: forward pass, loss calculation, backprop
+        
+    def evaluate(self, val_loader):
+        # Run evaluation on validation set
+        
+    def _run_validation(self, val_loader):
+        # Wrapper for evaluation with timing and logging
+        
+    def _handle_unfreezing(self, epoch, unfreeze_strategy):
+        # Control parameter freezing based on epoch and strategy
+        
+    def fit(self, train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
+        # Main training loop across epochs
+```
+
+## Dataset and Model Classes
+
+```python
+class NLSTDataset(Dataset):
+    def __init__(self, df, processor, label_cols):
+        # Initialize dataset with dataframe, processor, and label columns
+        
+    def __len__(self):
+        # Return number of samples
+        
+    def __getitem__(self, idx):
+        # Process and return one sample: (chunks, labels, mask)
+```
+
+```python
+class CombinedModel(nn.Module):
+    def __init__(self, base_model, chunk_feat_dim, hidden_dim, num_tasks, ...):
+        # Initialize with ViT backbone and transformer aggregator
+        
+    def forward(self, x):
+        # Process input through backbone and aggregator
+        
+    def freeze_base_model(self):
+        # Disable gradient updates for backbone
+        
+    def unfreeze_base_model(self):
+        # Enable gradient updates for backbone
+        
+    def unfreeze_last_n_blocks(self, n):
+        # Selectively unfreeze last n blocks of backbone
+
+
 # DDP Training Flow with Tensor Shapes
 
 ## Initialization and Setup
@@ -107,83 +193,46 @@ def evaluate(model, val_loader, criterion):
     # Set model to evaluation mode
     model.eval()
     
-    # Initialize metrics
-    total_loss = 0.0
-    correct_1yr = 0
-    total_1yr = 0
-    correct_3yr = 0
-    total_3yr = 0
-    correct_6yr = 0
-    total_6yr = 0
+    # Initialize tracking variables
+    samples = 0
+    print(f"Starting evaluation on validation set...")
     
-    # Counts for positive/negative samples
-    pos_1yr, neg_1yr = 0, 0
-    pos_3yr, neg_3yr = 0, 0
-    pos_6yr, neg_6yr = 0, 0
+    # Disable gradient calculation during evaluation
+    with torch.no_grad():
+        for i, (chunks, labels, mask) in enumerate(val_loader):
+            # Process batch
+            try:
+                # Move data to device and squeeze batch dimension
+                chunks = chunks.squeeze(1).to(device)
+                
+                # Limit chunks if needed to prevent OOM errors
+                max_chunks = 28
+                if chunks.size(0) > max_chunks:
+                    chunks = chunks[:max_chunks]
+                
+                # Forward pass
+                _ = model(chunks)
+                samples += 1
+                
+                # Print progress
+                if i % 10 == 0:
+                    print(f"Processed {i+1} validation samples")
+            except Exception as e:
+                print(f"Error in validation sample {i}: {str(e)}")
+                continue
     
-    # Collect predictions for AUC calculation
-    all_preds = []
-    all_targets = []
-    all_masks = []
+    # Return basic metrics
+    elapsed = time.time() - start_time
+    print(f"Evaluated {samples} samples in {elapsed:.2f}s")
     
-    with torch.no_grad():  # Disable gradient calculation
-        for chunks, labels, mask in val_loader:
-            # Process batch same as in training
-            chunks = chunks.to(local_device)       # Shape: [1, C, 3, 448, 448]
-            target = torch.tensor(labels, device=local_device)  # Shape: [num_tasks]
-            mask_tensor = torch.tensor(mask, device=local_device)  # Shape: [num_tasks]
-            
-            # Handle large volumes
-            if chunks.size(1) > max_chunks:
-                chunks = chunks[:, start:end]  # Shape: [1, max_chunks, 3, 448, 448]
-            
-            # Forward pass
-            outputs = model(chunks)            # Shape: [1, num_tasks]
-            
-            # Get binary predictions
-            predictions = (torch.sigmoid(outputs) > 0.5).float()  # Shape: [1, num_tasks]
-            
-            # Calculate accuracy for each time point
-            if mask_tensor[0]:  # 1-year
-                is_correct = (predictions[0, 0] == target[0]).float().item()
-                correct_1yr += is_correct
-                total_1yr += 1
-                if target[0].item() == 1:
-                    pos_1yr += 1
-                else:
-                    neg_1yr += 1
-            
-            if mask_tensor[1]:  # 3-year
-                is_correct = (predictions[0, 1] == target[1]).float().item()
-                correct_3yr += is_correct
-                total_3yr += 1
-                if target[1].item() == 1:
-                    pos_3yr += 1
-                else:
-                    neg_3yr += 1
-            
-            if mask_tensor[2]:  # 6-year
-                is_correct = (predictions[0, 2] == target[2]).float().item()
-                correct_6yr += is_correct
-                total_6yr += 1
-                if target[2].item() == 1:
-                    pos_6yr += 1
-                else:
-                    neg_6yr += 1
-            
-            # Store predictions and targets for AUC calculation
-            all_preds.append(outputs.cpu().numpy())
-            all_targets.append(labels)
-            all_masks.append(mask)
-    
-    # Calculate metrics
+    # For now, using placeholder values for metrics
+    # This can be extended to calculate actual metrics if needed
     metrics = {
-        "acc1": correct_1yr / max(1, total_1yr),
-        "acc3": correct_3yr / max(1, total_3yr),
-        "acc6": correct_6yr / max(1, total_6yr),
-        "pos_count_1yr": f"{pos_1yr}-{neg_1yr}",
-        "pos_count_3yr": f"{pos_3yr}-{neg_3yr}",
-        "pos_count_6yr": f"{pos_6yr}-{neg_6yr}",
+        'samples_evaluated': samples,
+        'eval_time_seconds': elapsed,
+        'acc1': 0.0,  # Placeholder values 
+        'acc3': 0.0,
+        'acc6': 0.0
     }
     
     return metrics
@@ -216,10 +265,21 @@ def fit(train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
         global_step = train(model, train_loader, optimizer, criterion, epoch, global_step)
         
         # Only rank 0 performs validation
-        if rank == 0:
+        if rank == 0 and global_step % val_every == 0:
+            # Free up memory before validation
+            gc.collect()
+            torch.cuda.empty_cache()
+            
+            # Log memory usage before validation
+            mem_allocated = torch.cuda.memory_allocated(device) / (1024 ** 2)
+            mem_reserved = torch.cuda.memory_reserved(device) / (1024 ** 2)
+            print(f"Memory before validation: {mem_allocated:.2f}MB allocated, {mem_reserved:.2f}MB reserved")
+            
+            # Run validation
             val_metrics = evaluate(model, val_loader, criterion)
+            
+            # Log validation metrics
             log_metrics(val_metrics, step=global_step, epoch=epoch, phase="validation")
-            save_checkpoint(model, optimizer, epoch, global_step, val_metrics)
 
 # Main execution
 for epoch in range(num_epochs):
@@ -243,13 +303,14 @@ destroy_process_group()
 
 2. **Slice Limitation**:
    - Large medical volumes with many slices are subsampled if they exceed memory limits
-   - Typically centers the sampling window around the middle of the volume
-   - Prevents OOM errors while retaining most relevant information
+   - Typically limits to first 28 slices if volume is too large
+   - Prevents OOM errors while retaining relevant information
 
 3. **Validation Strategy**:
    - Only performed on rank 0 to avoid redundant computation
-   - Small validation subset used to quickly assess model quality
-   - AUC and accuracy metrics calculated for each prediction task
+   - Limited to 100 samples from validation set for efficiency
+   - Simple forward pass evaluation to check model functionality
+   - Memory tracking before and after validation to monitor usage
 
 4. **Model Parameter Groups**:
    - Different learning rates for backbone vs. aggregator

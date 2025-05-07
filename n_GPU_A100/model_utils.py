@@ -158,31 +158,31 @@ class NLSTDataset(Dataset):
         return len(self.df)
 
     def __getitem__(self, idx: int):
-        row = self.df.iloc[idx]
-        nii_path = row.file_path
+        row = self.df.iloc[idx]  # Shape: pandas.Series (1D row data)
+        nii_path = row.file_path  # Shape: str (file path)
         #print(f"[Data] Loading volume {idx}: {nii_path}")
-        vol = nib.load(nii_path).get_fdata().astype(np.float32)
+        vol = nib.load(nii_path).get_fdata().astype(np.float32)  # Shape: [H, W, D] 3D volume
         H, W, D = vol.shape
         #print(f"[Data] Volume shape: {vol.shape}")
-        num_chunks = D // self.proc.chunk_depth
+        num_chunks = D // self.proc.chunk_depth  # Shape: scalar (number of chunks)
 
-        windows = []
+        windows = []  # Will collect chunks
         for i in range(num_chunks):
-            arr = vol[:, :, i*self.proc.chunk_depth:(i+1)*self.proc.chunk_depth]
-            arr = np.clip(arr, self.proc.vmin, self.proc.vmax)
-            arr = (arr - self.proc.vmin) / (self.proc.vmax - self.proc.vmin)
-            arr = np.clip(arr, self.proc.eps, 1.0 - self.proc.eps)
+            arr = vol[:, :, i*self.proc.chunk_depth:(i+1)*self.proc.chunk_depth]  # Shape: [H, W, chunk_depth]
+            arr = np.clip(arr, self.proc.vmin, self.proc.vmax)  # Shape: [H, W, chunk_depth]
+            arr = (arr - self.proc.vmin) / (self.proc.vmax - self.proc.vmin)  # Shape: [H, W, chunk_depth]
+            arr = np.clip(arr, self.proc.eps, 1.0 - self.proc.eps)  # Shape: [H, W, chunk_depth]
 
-            t = torch.from_numpy(arr).permute(2, 0, 1)
+            t = torch.from_numpy(arr).permute(2, 0, 1)  # Shape: [chunk_depth, H, W]
             t = F.interpolate(t.unsqueeze(0), size=self.proc.out_size,
-                              mode="bilinear", align_corners=False).squeeze(0)
-            t = (t - 0.5) / 0.5
-            windows.append(t)
+                              mode="bilinear", align_corners=False).squeeze(0)  # Shape: [chunk_depth, 448, 448]
+            t = (t - 0.5) / 0.5  # Shape: [chunk_depth, 448, 448]
+            windows.append(t)  # Add to list
 
-        chunks = torch.stack(windows, dim=0)
-        labels = row[self.labels].to_numpy(dtype=np.float32)
-        mask   = (labels != -1)
-        return chunks, labels, mask
+        chunks = torch.stack(windows, dim=0)  # Shape: [num_chunks, chunk_depth, 448, 448]
+        labels = row[self.labels].to_numpy(dtype=np.float32)  # Shape: [num_labels] (e.g., [3] for 3 time points)
+        mask = (labels != -1)  # Shape: [num_labels] boolean mask
+        return chunks, labels, mask  # Return shapes: [num_chunks, chunk_depth, 448, 448], [num_labels], [num_labels]
 
 class Trainer:
     def __init__(
@@ -493,3 +493,159 @@ def calculate_class_weights(df, label_cols):
         weights.append(weight)
     
     return torch.tensor(weights)
+
+def print_dataset_statistics(df, label_cols, dataset_name="Dataset"):
+    """
+    Print detailed statistics about a dataset including class distribution.
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing the dataset
+        label_cols (List[str]): List of column names for prediction tasks
+        dataset_name (str): Name to display for this dataset
+    """
+    print(f"\n====== {dataset_name} Statistics ======")
+    print(f"Total samples: {len(df)}")
+    
+    # Check if 'split' column exists
+    if 'split' in df.columns:
+        for split_name in df['split'].unique():
+            split_count = (df['split'] == split_name).sum()
+            print(f"  '{split_name}' split: {split_count} samples ({100 * split_count / len(df):.1f}%)")
+    
+    # Calculate class distribution for each time point
+    print(f"\nClass distribution in {dataset_name}:")
+    for col in label_cols:
+        pos = (df[col] == 1).sum()
+        neg = (df[col] == 0).sum()
+        missing = (df[col] == -1).sum()
+        invalid = len(df) - pos - neg - missing
+        total_valid = pos + neg
+        
+        if total_valid > 0:
+            pos_ratio = 100 * pos / total_valid
+            print(f"  {col}:")
+            print(f"    Positive: {pos} ({pos_ratio:.1f}%)")
+            print(f"    Negative: {neg} ({100 - pos_ratio:.1f}%)")
+            if missing > 0:
+                print(f"    Missing: {missing} ({100 * missing / len(df):.1f}% of total)")
+            if invalid > 0:
+                print(f"    Invalid values: {invalid}")
+        else:
+            print(f"  {col}: No valid samples")
+    
+    # Check for file_path if present
+    if 'file_path' in df.columns:
+        missing_paths = df['file_path'].isna().sum()
+        if missing_paths > 0:
+            print(f"\nWarning: {missing_paths} samples ({100 * missing_paths / len(df):.1f}%) have missing file paths")
+    
+    # Volume information if available
+    if 'vol_shape' in df.columns:
+        print("\nVolume statistics:")
+        try:
+            # Extract volume shapes and calculate statistics
+            shapes = df['vol_shape'].dropna().tolist()
+            if shapes:
+                print(f"  Number of volumes with shape info: {len(shapes)}")
+                # Add any specific volume analysis you need
+        except:
+            print("  Could not analyze volume shapes")
+    
+    print("=" * (23 + len(dataset_name)))
+    return
+
+def analyze_datasets(csv_path, label_cols):
+    """
+    Analyze training and validation datasets from a CSV file.
+    
+    Args:
+        csv_path (str): Path to the CSV file
+        label_cols (List[str]): List of column names for prediction tasks
+    """
+    try:
+        import pandas as pd
+        
+        # Read the full dataset
+        full_df = pd.read_csv(csv_path)
+        print_dataset_statistics(full_df, label_cols, "Full Dataset")
+        
+        # Analyze training set
+        if 'split' in full_df.columns:
+            train_df = full_df[full_df['split'] == 'train']
+            if len(train_df) > 0:
+                print_dataset_statistics(train_df, label_cols, "Training Set")
+            
+            # Analyze validation set
+            val_df = full_df[full_df['split'] == 'val']
+            if len(val_df) > 0:
+                print_dataset_statistics(val_df, label_cols, "Validation Set")
+                
+            # Analyze test set if exists
+            test_df = full_df[full_df['split'] == 'test']
+            if len(test_df) > 0:
+                print_dataset_statistics(test_df, label_cols, "Test Set")
+        
+        # Calculate imbalance ratios for potential class weights
+        print("\n===== Class Weight Recommendations =====")
+        for col in label_cols:
+            pos = (full_df[full_df['split'] == 'train'][col] == 1).sum()
+            neg = (full_df[full_df['split'] == 'train'][col] == 0).sum()
+            if pos > 0 and neg > 0:
+                weight = neg / pos
+                print(f"  {col}: Recommended pos_weight = {weight:.2f}")
+        print("======================================")
+        
+    except Exception as e:
+        print(f"Error analyzing datasets: {e}")
+        import traceback
+        traceback.print_exc()
+
+def main(args):
+    # ------------------------------------------------------------------
+    # 1. DDP initialization (torchrun sets RANK, WORLD_SIZE, LOCAL_RANK)
+    # ------------------------------------------------------------------
+    dist.init_process_group(backend="nccl")
+    local_rank = int(os.environ["LOCAL_RANK"])
+    world_size = dist.get_world_size()
+    global_rank = dist.get_rank()
+    torch.cuda.set_device(local_rank)
+    
+    # convenience so you can still run the script on one GPU
+    if world_size == 1:
+        print("Single-GPU run – DDP will run on one device")
+    
+    # Only rank 0 should log preparation information
+    if global_rank == 0:
+        logging.basicConfig(
+            level=logging.INFO, 
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler(os.path.join(args.output, 'training.log'))
+            ]
+        )
+        logging.info(f"Starting training on {world_size} GPUs with full model copies (DDP)")
+        
+        # Prepare balanced validation dataset if needed
+        if args.balance_val:
+            csv_path = prepare_balanced_validation(args.csv)
+        else:
+            csv_path = args.csv
+            
+        # Analyze datasets and print statistics
+        from model_utils import analyze_datasets
+        
+        # Define the label columns to use for prediction
+        label_cols = ['1-year-cancer', '2-year-cancer', '3-year-cancer', 
+                     '4-year-cancer', '5-year-cancer', '6-year-cancer']
+                     
+        analyze_datasets(csv_path, label_cols)
+    else:
+        # Set up minimal logging for non-zero ranks
+        logging.basicConfig(level=logging.WARNING)
+        csv_path = args.csv
+    
+    # Make sure all processes wait until rank 0 has prepared the CSV
+    dist.barrier()
+    
+    # Rest of your code...

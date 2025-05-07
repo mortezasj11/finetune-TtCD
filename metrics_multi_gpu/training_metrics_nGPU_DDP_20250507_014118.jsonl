@@ -1,0 +1,1 @@
+{"total_loss": 0.025081632991787048, "acc1": 0.8, "acc3": 0.7575757575757576, "acc6": 0.7878787878787878, "pos_count_1yr": "4-96", "pos_count_3yr": "7-92", "pos_count_6yr": "8-91", "iteration": 100, "epoch": 0, "lr": 1e-05, "accumulation_step": 19, "accum_size": 20, "type": "train"}

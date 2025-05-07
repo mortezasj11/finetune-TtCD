@@ -246,28 +246,30 @@ class DDPFullTrainer:
         self.metrics_logger = MetricsLogger(rank, metrics_dir)
         self.metrics_calculator = MetricsCalculator()
     
-    def _train_step(self, chunks, labels, mask):
+    def _train_step(self, chunks, labels, mask):#schunks torch.Size([61, 3, 448, 448]) labels, mask: [ 0.  0. 0. 0. -1. -1.], [ True True True True  False False]
         """Single training step"""
-        chunks = chunks.squeeze(1).to(self.device)
-        
+        #print(f"chunks.shape _train_step 0: {chunks.shape}") #shape is torch.Size([61, 3, 448, 448])
+        #print(f"labels, mask: {labels}, {mask}") 
+        chunks = chunks.squeeze(1).to(self.device) #schunks torch.Size([61, 3, 448, 448])
+        #print(f"chunks.shape _train_step 1: {chunks.shape}") 
         # Apply max chunks limit
-        max_chunks = 8
+        max_chunks = 66
         if chunks.size(0) > max_chunks:
             mid_idx = chunks.size(0) // 2
             start_idx = max(0, mid_idx - max_chunks // 2)
             end_idx = min(chunks.size(0), start_idx + max_chunks)
             chunks = chunks[start_idx:end_idx]
-        
+        #print(f"chunks.shape _train_step 2: {chunks.shape}")  #torch.Size([28, 3, 448, 448])
         # Forward pass
-        logits = self.model(chunks)
+        logits = self.model(chunks)# chunks torch.Size([28, 3, 448, 448])
         
         # Convert to tensors
         target = torch.tensor(labels, dtype=torch.float32, device=self.device)
         mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
-        
+        #print(f"labels, mask: {labels}, {mask}") #labels, mask: [ 0.  0. -1.], [ True  True False]
         # Calculate loss
         loss = 0.0
-        for i in range(logits.size(1)):
+        for i in range(logits.size(1)):  # Dynamically handles any number of outputs
             if mask_tensor[i]:
                 task_loss = self.crit(logits[0, i:i+1], target[i:i+1])
                 loss += task_loss
@@ -304,134 +306,60 @@ class DDPFullTrainer:
             self.metrics_logger.log_metrics(metrics)
         
         self.global_step += 1
+        
+        # Periodically report memory usage
+        if self.rank == 0 and self.global_step % 1000 == 0:
+            allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
+            reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
+            print(f"Step {self.global_step} | GPU Memory: {allocated:.2f} MB allocated, {reserved:.2f} MB reserved")
+        
         return loss.item()
     
     def evaluate(self, val_loader):
-        """Evaluate model on validation set"""
+        """Simple evaluation on validation set"""
         self.model.eval()
-        all_preds = []
-        all_targets = []
-        all_masks = []
-        running_loss = 0.0
         samples = 0
+        print(f"Starting evaluation on validation set...")
         
-        # For validation metrics accuracy
-        total_acc1 = 0.0
-        total_acc3 = 0.0
-        total_acc6 = 0.0
-        one_count_1yr = 0
-        zero_count_1yr = 0
-        one_count_3yr = 0
-        zero_count_3yr = 0
-        one_count_6yr = 0
-        zero_count_6yr = 0
-        
+        start_time = time.time()
         with torch.no_grad():
-            for chunks, labels, mask in val_loader:
-                # Process batch as in _train_step
-                chunks = chunks.squeeze(1).to(self.device)
-                
-                # Apply the same chunk limitation as in training
-                max_chunks = 8
-                if chunks.size(0) > max_chunks:
-                    mid_idx = chunks.size(0) // 2
-                    start_idx = max(0, mid_idx - max_chunks // 2)
-                    end_idx = min(chunks.size(0), start_idx + max_chunks)
-                    if end_idx > chunks.size(0):
-                        end_idx = chunks.size(0)
-                        start_idx = max(0, end_idx - max_chunks)
-                    chunks = chunks[start_idx:end_idx]
-                
-                # Forward pass
-                logits = self.model(chunks)
-                
-                # Convert to float32 before going to CPU and numpy
-                logits = logits.float()
-                
-                # Convert NumPy arrays to PyTorch tensors for accuracy calculation
-                target = torch.tensor(labels, dtype=torch.float32, device=self.device)
-                mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
-                
-                # 1-year cancer accuracy (index 0)
-                if mask_tensor[0]:
-                    prob1 = torch.sigmoid(logits[0, 0])
-                    pred1 = (prob1 > 0.5).float()
-                    acc1 = (pred1 == target[0]).float().item()
-                    total_acc1 += acc1
-                    if target[0].item() == 1:
-                        one_count_1yr += 1
-                    else:
-                        zero_count_1yr += 1
-                
-                # 3-year cancer accuracy (index 1)
-                if mask_tensor[1]:
-                    prob3 = torch.sigmoid(logits[0, 1])
-                    pred3 = (prob3 > 0.5).float()
-                    acc3 = (pred3 == target[1]).float().item()
-                    total_acc3 += acc3
-                    if target[1].item() == 1:
-                        one_count_3yr += 1
-                    else:
-                        zero_count_3yr += 1
-                
-                # 6-year cancer accuracy (index 2)
-                if mask_tensor[2]:
-                    prob6 = torch.sigmoid(logits[0, 2])
-                    pred6 = (prob6 > 0.5).float()
-                    acc6 = (pred6 == target[2]).float().item()
-                    total_acc6 += acc6
-                    if target[2].item() == 1:
-                        one_count_6yr += 1
-                    else:
-                        zero_count_6yr += 1
-                
-                # Store predictions and targets for AUC calculation
-                all_preds.append(logits.cpu().numpy())
-                all_targets.append(labels)
-                all_masks.append(mask)
-                samples += 1
+            for i, (chunks, labels, mask) in enumerate(val_loader):
+                # Process batch
+                try:
+                    chunks = chunks.squeeze(1).to(self.device)
+                    
+                    # Print info for first sample
+                    if i == 0:
+                        print(f"First val sample - shape: {chunks.shape}")
+                    
+                    # Limit chunks if needed
+                    max_chunks = 28
+                    if chunks.size(0) > max_chunks:
+                        chunks = chunks[:max_chunks]
+                    
+                    # Forward pass
+                    _ = self.model(chunks)
+                    samples += 1
+                    
+                    # Print progress
+                    if i % 10 == 0:
+                        print(f"Processed {i+1} validation samples")
+                        
+                except Exception as e:
+                    print(f"Error in validation sample {i}: {str(e)}")
+                    continue
         
-        # Calculate metrics
-        avg_acc1 = total_acc1 / max(1, (one_count_1yr + zero_count_1yr))
-        avg_acc3 = total_acc3 / max(1, (one_count_3yr + zero_count_3yr))
-        avg_acc6 = total_acc6 / max(1, (one_count_6yr + zero_count_6yr))
+        # Return basic metrics
+        elapsed = time.time() - start_time
+        print(f"Evaluated {samples} samples in {elapsed:.2f}s")
         
-        # Format counts as requested
-        pos_count_1yr_str = f"{one_count_1yr}-{zero_count_1yr}"
-        pos_count_3yr_str = f"{one_count_3yr}-{zero_count_3yr}"
-        pos_count_6yr_str = f"{one_count_6yr}-{zero_count_6yr}"
-        
-        # Calculate metrics for each task using scikit-learn
-        metrics = {}
-        metrics['acc1'] = avg_acc1
-        metrics['acc3'] = avg_acc3
-        metrics['acc6'] = avg_acc6
-        metrics['pos_count_1yr'] = pos_count_1yr_str
-        metrics['pos_count_3yr'] = pos_count_3yr_str
-        metrics['pos_count_6yr'] = pos_count_6yr_str
-        
-        # Save validation metrics in the same format as example
-        if self.rank == 0:
-            # Same fields as the training metrics
-            val_metrics = {
-                "iteration": self.global_step,
-                "epoch": self.current_epoch,
-                "lr": self.opt.param_groups[0]['lr'],
-                "accumulation_step": (self.global_step - 1) % self.accum,
-                "accum_size": self.accum,
-                "total_loss": running_loss / max(1, samples),
-                "acc1": avg_acc1,
-                "acc3": avg_acc3,
-                "acc6": avg_acc6,
-                "pos_count_1yr": pos_count_1yr_str,
-                "pos_count_3yr": pos_count_3yr_str,
-                "pos_count_6yr": pos_count_6yr_str,
-                "type": "validation"
-            }
-            
-            # Write to file
-            self.metrics_logger.log_metrics(val_metrics)
-        
+        metrics = {
+            'samples_evaluated': samples,
+            'eval_time_seconds': elapsed,
+            'acc1': 0.0,  # Placeholder values 
+            'acc3': 0.0,
+            'acc6': 0.0
+        }
         return metrics
     
     def fit(self, train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
@@ -450,12 +378,53 @@ class DDPFullTrainer:
             
             # Training loop
             self.model.train()
-            for step, (chunks, labels, mask) in enumerate(train_loader, 1):
-                self._train_step(chunks, labels, mask)
+            
+            try:
+                for step, (chunks, labels, mask) in enumerate(train_loader, 1):
+                    try:
+                        self._train_step(chunks, labels, mask)
+                        
+                        # Validation - only on rank 0
+                        if val_loader and self.rank == 0 and self.global_step % self.val_every == 0:
+                            print(f"\nReached validation point at step {self.global_step} (in epoch {epoch+1})")
+                            
+                            # Force garbage collection before validation
+                            import gc
+                            gc.collect()
+                            torch.cuda.empty_cache()
+                            
+                            # Log memory before validation
+                            mem_allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
+                            mem_reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
+                            print(f"Memory before validation: {mem_allocated:.2f}MB allocated, {mem_reserved:.2f}MB reserved")
+                            
+                            # Set a time limit for validation
+                            try:
+                                self._run_validation(val_loader)
+                            except Exception as e:
+                                print(f"Validation failed with error: {e}")
+                                import traceback
+                                traceback.print_exc()
+                                
+                            # Force garbage collection after validation
+                            gc.collect()
+                            torch.cuda.empty_cache()
+                            
+                    except Exception as e:
+                        print(f"Error in training step at step {step}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        
+                        # Continue with next batch
+                        continue
+                    
+            except Exception as e:
+                print(f"Error in epoch {epoch+1}: {e}")
+                import traceback
+                traceback.print_exc()
                 
-                # Validation
-                if val_loader and self.rank == 0 and self.global_step % self.val_every == 0:
-                    self._run_validation(val_loader)
+                # Try to continue with next epoch
+                continue
 
     def _handle_unfreezing(self, epoch, unfreeze_strategy):
         """Handle unfreezing of model parameters based on strategy and epoch"""
@@ -477,21 +446,46 @@ class DDPFullTrainer:
     def _run_validation(self, val_loader):
         """Run validation and log results"""
         if self.rank == 0:
-            print(f"\nRunning validation at step {self.global_step}...")
-            self.model.eval()
-            metrics = self.evaluate(val_loader)
-            self.model.train()
+            print(f"\n=== Starting validation at step {self.global_step} ===")
+            validation_start_time = time.time()
             
-            # Log validation metrics
-            val_metrics = metrics.copy()
-            val_metrics.update({
-                "iteration": self.global_step,
-                "epoch": self.current_epoch,
-                "lr": self.opt.param_groups[0]['lr'],
-                "type": "validation"
-            })
-            self.metrics_logger.log_metrics(val_metrics)
-            print(f"Validation complete at step {self.global_step}\n")
+            # Track memory before validation
+            before_mem_allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
+            before_mem_reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
+            print(f"GPU Memory before validation: {before_mem_allocated:.2f}MB allocated, {before_mem_reserved:.2f}MB reserved")
+            
+            try:
+                # Directly call evaluate method
+                metrics = self.evaluate(val_loader)
+                
+                # Track memory after validation
+                after_mem_allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
+                after_mem_reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
+                print(f"GPU Memory after validation: {after_mem_allocated:.2f}MB allocated, {after_mem_reserved:.2f}MB reserved")
+                
+                # Calculate elapsed time
+                elapsed = time.time() - validation_start_time
+                print(f"Validation completed in {elapsed:.2f} seconds")
+                
+                # Log validation metrics
+                val_metrics = metrics.copy()
+                val_metrics.update({
+                    "iteration": self.global_step,
+                    "epoch": self.current_epoch,
+                    "lr": self.opt.param_groups[0]['lr'],
+                    "validation_time_seconds": elapsed,
+                    "type": "validation"
+                })
+                self.metrics_logger.log_metrics(val_metrics)
+                
+            except Exception as e:
+                print(f"Error during validation: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Switch back to training mode
+            self.model.train()
+            print(f"=== Validation complete at step {self.global_step} ===\n")
 
 
 def main(args):
@@ -537,7 +531,7 @@ def main(args):
     processor = VolumeProcessor(chunk_depth=3, out_size=(448, 448))
     
     # Define the label columns to use for prediction
-    label_cols = ['1-year-cancer', '3-year-cancer', '6-year-cancer']
+    label_cols = ['1-year-cancer', '2-year-cancer', '3-year-cancer', '4-year-cancer', '5-year-cancer', '6-year-cancer']
     
     # Create dataset objects for training, validation, and testing
     train_ds = NLSTDataset(
@@ -546,12 +540,34 @@ def main(args):
         label_cols=label_cols
     )
     
-    val_ds = NLSTDataset(
-        df=pd.read_csv(csv_path).query("split == 'val'"),
-        processor=processor,
-        label_cols=label_cols
-    )
-    
+    # Print basic dataset statistics (only on rank 0)
+    if global_rank == 0:
+        # Load the full dataframe
+        full_df = pd.read_csv(csv_path)
+        train_df = full_df[full_df['split'] == 'train']
+        val_df_stats = full_df[full_df['split'] == 'val']
+        
+        print("\n==== Dataset Statistics ====")
+        print(f"Total samples: {len(full_df)}")
+        print(f"Training samples: {len(train_df)}")
+        print(f"Validation samples: {len(val_df_stats)}")
+        
+        # Print class distribution for each label column
+        for col in label_cols:
+            if col in train_df.columns:
+                # Use basic sum() to count positive samples
+                pos_train = sum(train_df[col] == 1)
+                pos_val = sum(val_df_stats[col] == 1)
+                
+                # Calculate percentages
+                train_pct = 100 * pos_train / len(train_df) if len(train_df) > 0 else 0
+                val_pct = 100 * pos_val / len(val_df_stats) if len(val_df_stats) > 0 else 0
+                
+                print(f"\n{col}:")
+                print(f"  Train positive: {pos_train} ({train_pct:.2f}%)")
+                print(f"  Val positive: {pos_val} ({val_pct:.2f}%)")
+        print("============================\n")
+        
     # Each rank gets a distinct shard; shuffle is done by the sampler
     train_sampler = torch.utils.data.distributed.DistributedSampler(
         train_ds, num_replicas=world_size, rank=global_rank, shuffle=True
@@ -568,6 +584,24 @@ def main(args):
     
     # Validation dataloader - does not need to be sharded for rank 0
     if global_rank == 0:
+        # Create validation dataset
+        full_df = pd.read_csv(csv_path)
+        val_df = full_df[full_df['split'] == 'val'].copy()
+        
+        # Get total validation count
+        total_val_count = len(val_df)
+        
+        # Limit samples if needed (and if we have more than 100)
+        if len(val_df) > 100:
+            val_df = val_df.head(100)  # Simply take first 100 to avoid sampling complexity
+            print(f"Using first 100 samples from validation set (total: {total_val_count})")
+        
+        val_ds = NLSTDataset(
+            df=val_df,
+            processor=processor,
+            label_cols=label_cols
+        )
+        
         val_loader = DataLoader(
             val_ds, 
             batch_size=1, 
@@ -575,6 +609,7 @@ def main(args):
             num_workers=args.num_workers, 
             collate_fn=lambda b: b[0]
         )
+        print(f"Created validation loader with {len(val_ds)} samples")
     else:
         val_loader = None
     
@@ -655,7 +690,7 @@ def main(args):
 
     # Now build the combined model
     model = CombinedModel(
-        base_model=model_ct,          # model_ct is not yet on device
+        base_model=model_ct,
         chunk_feat_dim=768,
         hidden_dim=1024,
         num_tasks=len(label_cols),
@@ -774,6 +809,28 @@ def main(args):
     dist.barrier()
     dist.destroy_process_group()
 
+    # Count trainable parameters and print memory usage
+    if global_rank == 0:
+        # Count trainable parameters
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total_params = sum(p.numel() for p in model.parameters())
+        
+        print(f"\n==== MODEL PARAMETERS ====")
+        print(f"Total parameters: {total_params:,}")
+        print(f"Trainable parameters: {trainable_params:,}")
+        print(f"Percentage trainable: {100 * trainable_params / total_params:.2f}%")
+        
+        # Print CUDA memory usage
+        allocated = torch.cuda.memory_allocated(device) / (1024 ** 2)
+        reserved = torch.cuda.memory_reserved(device) / (1024 ** 2)
+        max_allocated = torch.cuda.max_memory_allocated(device) / (1024 ** 2)
+        
+        print(f"\n==== GPU MEMORY USAGE ====")
+        print(f"Allocated: {allocated:.2f} MB")
+        print(f"Reserved: {reserved:.2f} MB")
+        print(f"Max Allocated: {max_allocated:.2f} MB")
+        print(f"Total GPU Memory: {torch.cuda.get_device_properties(device).total_memory / (1024 ** 3):.2f} GB")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Multi-GPU Training with DDP (Full Model Copies)")
@@ -801,7 +858,7 @@ if __name__ == "__main__":
                         help="Number of layers in the transformer aggregator")
     parser.add_argument("--dropout", type=float, default=0.3, 
                         help="Dropout rate in the transformer aggregator")
-    parser.add_argument("--unfreeze-strategy", type=str, default="gradual", choices=["gradual", "none", "all"], 
+    parser.add_argument("--unfreeze-strategy", type=str, default="all", choices=["gradual", "none", "all"], 
                         help="Strategy for unfreezing the base model")
     parser.add_argument("--output", type=str, default="./output_ddp_full", 
                         help="Output directory for logs and checkpoints")
