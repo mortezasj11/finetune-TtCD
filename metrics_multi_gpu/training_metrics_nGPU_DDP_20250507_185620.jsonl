@@ -1,0 +1,19 @@
+{"iteration": 1, "epoch": 0, "loss": 2.5666298866271973, "lr": 4.000237344762593e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0}
+{"iteration": 2, "epoch": 0, "loss": 0.9323741793632507, "lr": 4.000949376703204e-06, "type": "training", "acc_task0": 1.0, "acc_task1": 1.0, "acc_task2": 1.0, "acc_task3": 1.0, "acc_task4": 1.0, "acc_task5": 0.0}
+{"iteration": 3, "epoch": 0, "loss": 3.5685362815856934, "lr": 4.002136088780266e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0}
+{"iteration": 4, "epoch": 0, "loss": 2.7256851196289062, "lr": 4.003797469257983e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0, "acc_task4": 0.0}
+{"iteration": 5, "epoch": 0, "loss": 3.110419511795044, "lr": 4.0059335017063276e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0}
+{"iteration": 6, "epoch": 0, "loss": 1.9391072988510132, "lr": 4.008544165001287e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0, "acc_task4": 0.0, "acc_task5": 1.0}
+{"iteration": 7, "epoch": 0, "loss": 3.4093592166900635, "lr": 4.011629433325095e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0}
+{"iteration": 8, "epoch": 0, "loss": 2.8260762691497803, "lr": 4.0151892761663765e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 1.0, "acc_task4": 0.0}
+{"iteration": 9, "epoch": 0, "loss": 3.522792339324951, "lr": 4.019223658320559e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0}
+{"iteration": 10, "epoch": 0, "loss": 2.5668141841888428, "lr": 4.023732539890169e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0, "acc_task4": 0.0}
+{"iteration": 11, "epoch": 0, "loss": 2.026975393295288, "lr": 4.028715876285222e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0, "acc_task4": 0.0, "acc_task5": 1.0}
+{"iteration": 12, "epoch": 0, "loss": 3.0054078102111816, "lr": 4.034173618223675e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0}
+{"iteration": 13, "epoch": 0, "loss": 2.3675782680511475, "lr": 4.040105711731939e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0, "acc_task4": 0.0, "acc_task5": 1.0}
+{"iteration": 14, "epoch": 0, "loss": 2.280663251876831, "lr": 4.046512098145391e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0, "acc_task4": 0.0, "acc_task5": 1.0}
+{"iteration": 15, "epoch": 0, "loss": 2.1652164459228516, "lr": 4.0533927141089094e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0, "acc_task4": 0.0, "acc_task5": 1.0}
+{"iteration": 16, "epoch": 0, "loss": 1.3163530826568604, "lr": 4.060747491577572e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0, "acc_task4": 0.0, "acc_task5": 1.0}
+{"iteration": 17, "epoch": 0, "loss": 1.9784021377563477, "lr": 4.068576357817323e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0, "acc_task4": 0.0}
+{"iteration": 18, "epoch": 0, "loss": 2.94881534576416, "lr": 4.076879235405612e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0}
+{"iteration": 19, "epoch": 0, "loss": 2.992006301879883, "lr": 4.085656042232284e-06, "type": "training", "acc_task0": 0.0, "acc_task1": 0.0, "acc_task2": 0.0, "acc_task3": 0.0}

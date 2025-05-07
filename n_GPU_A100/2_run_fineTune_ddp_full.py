@@ -1,6 +1,5 @@
 # File: n_GPU_A100/2_run_fineTune_ddp_full.py
 
-import subprocess
 import os
 import logging
 import pandas as pd
@@ -22,349 +21,327 @@ from model_utils import (
     CombinedModel, 
     VolumeProcessor, 
     NLSTDataset, 
-    Trainer, 
-    calculate_class_weights
+    calculate_class_weights,
+    # New imports 
+    install_packages,
+    prepare_balanced_validation,
+    calculate_auc,
+    MetricsLogger,
+    MetricsCalculator
 )
 
 print("Files in the directory:", os.listdir("/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU"))
 
-def install_packages():
-    commands = [
-        ["pip", "install", "--extra-index-url", "https://download.pytorch.org/whl/cu117", "torch==2.0.0", "torchvision==0.15.0", "omegaconf", "torchmetrics==0.10.3", "fvcore", "iopath", "xformers==0.0.18", "submitit","numpy<2.0"],
-        ["pip", "install", "--extra-index-url", "https://pypi.nvidia.com", "cuml-cu11"],
-        ["pip", "install", "black==22.6.0", "flake8==5.0.4", "pylint==2.15.0"],
-        ["pip", "install", "mmsegmentation==0.27.0"],
-        ["pip", "install", "mmcv-full==1.5.0"]
-    ]
-    for i, command in enumerate(commands):
-        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-
-def prepare_balanced_validation(csv_path):
-    """Prepare a balanced validation set from the original data"""
-    df = pd.read_csv(csv_path)
-    
-    # Print original validation set size
-    print(f"Original validation set size: {df[df['split']=='val'].shape}")
-
-    val_df = df[df.split == 'val'].copy()
-    val_df = val_df[val_df.file_path.notna()].reset_index(drop=True)
-
-    # Get positive and negative samples for 6-year-cancer
-    pos_samples = val_df[val_df['6-year-cancer'] == 1]
-    neg_samples = val_df[val_df['6-year-cancer'] == 0]
-
-    print("\nBefore balancing:")
-    print(f"Positive samples: {len(pos_samples)}")
-    print(f"Negative samples: {len(neg_samples)}")
-
-    # Calculate sizes for balanced set
-    n_pos = len(pos_samples)
-    n_neg = len(neg_samples)
-    target_size = min(n_pos, n_neg)
-
-    # Sample equally from positive and negative
-    balanced_pos = pos_samples.sample(n=target_size, random_state=42)
-    balanced_neg = neg_samples.sample(n=target_size, random_state=42)
-
-    # Combine balanced samples
-    balanced_val_df = pd.concat([balanced_pos, balanced_neg]).reset_index(drop=True)
-
-    print("\nAfter balancing:")
-    print(f"Balanced validation set shape: {balanced_val_df.shape}")
-
-    # Create new dataframe correctly
-    df_new = df.copy()
-    # Remove all validation samples
-    df_new = df_new[df_new.split != 'val']
-    # Add balanced validation samples
-    balanced_val_df['split'] = 'val'  # Ensure split column is set
-    df_new = pd.concat([df_new, balanced_val_df], ignore_index=True)
-
-    print("\nFinal shapes:")
-    print(f"New validation set shape: {df_new[df_new['split']=='val'].shape}")
-    print(f"Total dataset shape: {df_new.shape}")
-
-    # Save the balanced validation set
-    temp_csv_path = csv_path.replace('.csv', '_balanced.csv')
-    df_new.to_csv(temp_csv_path, index=False)
-    
-    return temp_csv_path
-
-
-def calculate_auc(predictions, targets, mask=None):
-    """Calculate AUC score for binary classification"""
-    if mask is not None:
-        valid_indices = np.where(mask)[0]
-        if len(valid_indices) == 0:
-            return float('nan')
-        predictions = predictions[valid_indices]
-        targets = targets[valid_indices]
-    
-    # Ensure we have both classes present
-    if np.all(targets == 1) or np.all(targets == 0):
-        return float('nan')
-    
-    try:
-        return roc_auc_score(targets, predictions)
-    except:
-        return float('nan')
-
-
-# metrics_logger.py
-import logging
-import json
-import os
-import time
-from typing import Dict, Any
-
-class MetricsLogger:
-    def __init__(self, rank: int, metrics_dir: str = None):
-        self.rank = rank
-        self.should_save_metrics = (rank == 0 and metrics_dir is not None)
-        
-        if self.should_save_metrics:
-            self.metrics_dir = metrics_dir
-            os.makedirs(self.metrics_dir, exist_ok=True)
-            
-            # Create metrics filename with timestamp
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            self.metrics_filename = os.path.join(
-                self.metrics_dir, 
-                f"training_metrics_nGPU_DDP_{timestamp}.jsonl"
-            )
-            
-            print(f"Will save metrics to: {self.metrics_filename}")
-    
-    def log_metrics(self, metrics_dict: Dict[str, Any]):
-        """Log metrics to file and console"""
-        if not self.should_save_metrics:
-            return
-            
-        # Log to console
-        log_str = " | ".join([f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}" 
-                             for k, v in metrics_dict.items()])
-        logging.info(log_str)
-        
-        # Save to file
-        try:
-            with open(self.metrics_filename, 'a') as f:
-                f.write(json.dumps(metrics_dict) + '\n')
-        except Exception as e:
-            print(f"ERROR saving metrics: {e}")
-
-class MetricsCalculator:
-    def __init__(self):
-        self.reset()
-    
-    def reset(self):
-        """Reset all metrics"""
-        self.total_loss = 0.0
-        self.samples_seen = 0
-        
-        # Accuracy tracking
-        self.correct_1yr = 0
-        self.correct_3yr = 0
-        self.correct_6yr = 0
-        
-        # Sample counting
-        self.total_1yr_samples = 0
-        self.total_3yr_samples = 0
-        self.total_6yr_samples = 0
-        
-        # Positive sample tracking
-        self.pos_1yr = 0
-        self.pos_3yr = 0
-        self.pos_6yr = 0
-    
-    def update_metrics(self, predictions, targets, mask, loss):
-        """Update metrics for a single batch"""
-        # Update loss
-        self.total_loss += loss
-        self.samples_seen += 1
-        
-        # Update accuracy and counts for each time point
-        if mask[0]:  # 1-year
-            is_correct = (predictions[0] == targets[0]).float().item()
-            self.correct_1yr += is_correct
-            self.total_1yr_samples += 1
-            self.pos_1yr += int(targets[0].item() == 1)
-            
-        if mask[1]:  # 3-year
-            is_correct = (predictions[1] == targets[1]).float().item()
-            self.correct_3yr += is_correct
-            self.total_3yr_samples += 1
-            self.pos_3yr += int(targets[1].item() == 1)
-            
-        if mask[2]:  # 6-year
-            is_correct = (predictions[2] == targets[2]).float().item()
-            self.correct_6yr += is_correct
-            self.total_6yr_samples += 1
-            self.pos_6yr += int(targets[2].item() == 1)
-    
-    def get_metrics(self) -> Dict[str, Any]:
-        """Calculate and return current metrics"""
-        metrics = {
-            "total_loss": self.total_loss / max(1, self.samples_seen),
-            "acc1": self.correct_1yr / max(1, self.total_1yr_samples),
-            "acc3": self.correct_3yr / max(1, self.total_3yr_samples),
-            "acc6": self.correct_6yr / max(1, self.total_6yr_samples),
-            "pos_count_1yr": f"{self.pos_1yr}-{self.total_1yr_samples - self.pos_1yr}",
-            "pos_count_3yr": f"{self.pos_3yr}-{self.total_3yr_samples - self.pos_3yr}",
-            "pos_count_6yr": f"{self.pos_6yr}-{self.total_6yr_samples - self.pos_6yr}"
-        }
-        return metrics
-
-
 # Modified Trainer class that supports DDP with full model copies and gradient accumulation
 class DDPFullTrainer:
-    def __init__(
-        self,
-        model: DDP,
-        optimizer: torch.optim.Optimizer,
-        criterion: torch.nn.Module,
-        device: torch.device,
-        accum_steps: int = 10,
-        print_every: int = 100,
-        val_every: int = 500,
-        rank: int = 0,
-        world_size: int = 1,
-        metrics_dir: str = None
-    ):
-        self.model = model
-        self.opt = optimizer
-        self.crit = criterion
-        self.device = device
-        self.accum = accum_steps
-        self.print_every = print_every
-        self.val_every = val_every
-        self.global_step = 1
-        self.rank = rank
-        self.world_size = world_size
+    def __init__(self, args, label_cols):
+        self.args = args
+        self.label_cols = label_cols
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Initialize model and training components
+        self._init_model()
+        self._init_criterion()
+        self._init_optimizer()
+        self._init_scaler()
         
         # Initialize metrics components
-        self.metrics_logger = MetricsLogger(rank, metrics_dir)
+        self.metrics_logger = MetricsLogger(self.args.rank, self.args.metrics_dir if self.args.rank == 0 else None)
         self.metrics_calculator = MetricsCalculator()
-    
-    def _train_step(self, chunks, labels, mask):#schunks torch.Size([61, 3, 448, 448]) labels, mask: [ 0.  0. 0. 0. -1. -1.], [ True True True True  False False]
-        """Single training step"""
-        #print(f"chunks.shape _train_step 0: {chunks.shape}") #shape is torch.Size([61, 3, 448, 448])
-        #print(f"labels, mask: {labels}, {mask}") 
-        chunks = chunks.squeeze(1).to(self.device) #schunks torch.Size([61, 3, 448, 448])
-        #print(f"chunks.shape _train_step 1: {chunks.shape}") 
-        # Apply max chunks limit
-        max_chunks = 66
-        if chunks.size(0) > max_chunks:
-            mid_idx = chunks.size(0) // 2
-            start_idx = max(0, mid_idx - max_chunks // 2)
-            end_idx = min(chunks.size(0), start_idx + max_chunks)
-            chunks = chunks[start_idx:end_idx]
-        #print(f"chunks.shape _train_step 2: {chunks.shape}")  #torch.Size([28, 3, 448, 448])
-        # Forward pass
-        logits = self.model(chunks)# chunks torch.Size([28, 3, 448, 448])
         
-        # Convert to tensors
+        # Print configuration
+        if self.args.rank == 0:
+            print("\nTraining Configuration:")
+            print(f"Max chunks per sample: {self.args.max_chunks}")
+            print(f"Learning rate: {self.args.lr}")
+            print(f"Number of tasks: {len(self.label_cols)}")
+            print(f"Validation frequency: {self.args.val_every} steps")
+            print(f"Number of epochs: {self.args.epochs}")
+            print(f"Warmup steps: {self.args.warmup_steps}")
+            print(f"World size: {self.args.world_size}")
+            print(f"Device: {self.device}\n")
+    
+    def _init_model(self):
+        """Initialize the model"""
+        # Import model_ct from your module
+        sys.path.insert(0, "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6")
+        
+        from functools import partial
+        from dinov2.models.vision_transformer import vit_base, DinoVisionTransformer
+        from dinov2.layers import Mlp, PatchEmbed, SwiGLUFFNFused, MemEffAttention, NestedTensorBlock as Block
+        
+        # Load the pretrained model
+        checkpoint_path = "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6/output_dir/448_192_all14_17M_P32_B8/eval/training_314999/teacher_checkpoint.pth"
+        patch_size = 32
+        
+        # Load the base model first on CPU
+        model_ct = DinoVisionTransformer(
+            img_size=448,
+            patch_size=patch_size,
+            drop_path_rate=0.0,
+            block_chunks=1,
+            drop_path_uniform=True,
+            embed_dim=768,
+            depth=12,
+            num_heads=12,
+            mlp_ratio=4,
+            block_fn=partial(Block, attn_class=MemEffAttention),
+            num_register_tokens=5,
+            init_values=1.0e-05,
+        )
+
+        # Add explicit initialization of cls_token
+        model_ct.cls_token = torch.nn.Parameter(torch.zeros(1, 1, 768))
+        torch.nn.init.normal_(model_ct.cls_token, std=0.02)
+
+        # Load the weights
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        teacher_weights = checkpoint["teacher"]
+        teacher_weights_cleaned = {k.replace("backbone.", ""): v for k, v in teacher_weights.items()}
+        model_ct.load_state_dict(teacher_weights_cleaned, strict=False)
+
+        # Materialize tokens
+        def materialize_tokens_(m, dev):
+            with torch.no_grad():
+                for n in ["cls_token", "register_tokens", "mask_token"]:
+                    if hasattr(m, n) and getattr(m, n).storage().size() == 0:
+                        real = torch.zeros_like(getattr(m, n), device=dev)
+                        torch.nn.init.normal_(real, std=0.02)
+                        setattr(m, n, torch.nn.Parameter(real, requires_grad=True))
+
+        materialize_tokens_(model_ct, torch.device('cpu'))
+
+        # Build the combined model
+        self.model = CombinedModel(
+            base_model=model_ct,
+            chunk_feat_dim=768,
+            hidden_dim=1024,
+            num_tasks=len(self.label_cols),
+            num_attn_heads=self.args.num_attn_heads,
+            num_layers=self.args.num_layers,
+            dropout_rate=self.args.dropout
+        )
+
+        # Move model to device
+        self.model = self.model.to(self.device)
+        
+        # Set all parameters to requires_grad=True
+        for param in self.model.parameters():
+            param.requires_grad = True
+
+        # Wrap with DDP
+        self.model = DDP(
+            self.model,
+            device_ids=[self.args.local_rank],
+            output_device=self.args.local_rank,
+            find_unused_parameters=True
+        )
+
+    def _init_criterion(self):
+        """Initialize the loss function"""
+        if self.args.class_weights:
+            # Load weights from CSV
+            train_df = pd.read_csv(self.args.csv).query("split == 'train'")
+            weights = calculate_class_weights(train_df, self.label_cols)
+            weights = weights.to(self.device)
+            self.crit = torch.nn.BCEWithLogitsLoss(pos_weight=weights, reduction='none')
+        else:
+            self.crit = torch.nn.BCEWithLogitsLoss(reduction='none')
+
+    def _init_optimizer(self):
+        """Initialize the optimizer with parameter groups"""
+        # Define learning rates
+        main_lr = self.args.lr
+        base_lr = self.args.lr * 0.01  # Reduced from 0.1 to 0.01 for base model
+
+        # Separate base and aggregator parameters
+        base_params = []
+        agg_params = []
+
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                if 'module.base' in name:
+                    base_params.append(param)
+                else:
+                    agg_params.append(param)
+
+        # Configure optimizer with parameter groups
+        param_groups = [
+            {'params': base_params, 'lr': base_lr},  # Much lower LR for pretrained DinoVisionTransformer
+            {'params': agg_params, 'lr': main_lr}    # Higher LR for aggregator
+        ]
+
+        if self.args.optimizer == 'adam':
+            self.optimizer = torch.optim.Adam(param_groups)
+        elif self.args.optimizer == 'adamw':
+            self.optimizer = torch.optim.AdamW(param_groups, weight_decay=self.args.weight_decay)
+        else:
+            self.optimizer = torch.optim.SGD(param_groups, momentum=0.9)
+
+    def _init_scaler(self):
+        """Initialize the gradient scaler for mixed precision training"""
+        self.scaler = torch.cuda.amp.GradScaler()
+
+    def _train_step(self, chunks, labels, mask, spacing):
+        """Perform a single training step"""
+        chunks = chunks.squeeze(1).to(self.device)
         target = torch.tensor(labels, dtype=torch.float32, device=self.device)
         mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
-        #print(f"labels, mask: {labels}, {mask}") #labels, mask: [ 0.  0. -1.], [ True  True False]
-        # Calculate loss
-        loss = 0.0
-        for i in range(logits.size(1)):  # Dynamically handles any number of outputs
-            if mask_tensor[i]:
-                task_loss = self.crit(logits[0, i:i+1], target[i:i+1])
-                loss += task_loss
         
-        # Normalize loss
-        active_tasks = mask_tensor.sum().item()
-        if active_tasks > 0:
-            loss = loss / active_tasks
+        # Apply max_chunks constraint
+        if chunks.size(0) > self.args.max_chunks:
+            mid_idx = chunks.size(0) // 2
+            start_idx = max(0, mid_idx - self.args.max_chunks // 2)
+            end_idx = min(chunks.size(0), start_idx + self.args.max_chunks)
+            chunks = chunks[start_idx:end_idx]
         
-        # Gradient accumulation
-        loss = loss / self.accum
-        loss.backward()
+        # Forward pass with gradients
+        with torch.cuda.amp.autocast(enabled=True):
+            logits = self.model(chunks, spacing)
         
-        # Update weights
-        if (self.global_step) % self.accum == 0:
-            self.opt.step()
-            self.opt.zero_grad()
+            loss = 0.0
+            for j in range(logits.size(1)):
+                if mask_tensor[j]:
+                    task_loss = self.crit(logits[0, j:j+1], target[j:j+1])
+                    loss += task_loss
+            
+            # Normalize loss by number of tasks
+            active_tasks = mask_tensor.sum().item()
+            if active_tasks > 0:
+                loss = loss / active_tasks
         
-        # Update metrics
-        predictions = (torch.sigmoid(logits) > 0.5).float()
-        self.metrics_calculator.update_metrics(predictions[0], target, mask, loss.item())
+        # Backward pass
+        self.optimizer.zero_grad()
+        self.scaler.scale(loss).backward()
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
         
-        # Log metrics if needed
-        if self.rank == 0 and (self.global_step) % self.print_every == 0:
-            metrics = self.metrics_calculator.get_metrics()
-            metrics.update({
-                "iteration": self.global_step,
-                "epoch": self.current_epoch,
-                "lr": self.opt.param_groups[0]['lr'],
-                "accumulation_step": (self.global_step - 1) % self.accum,
-                "accum_size": self.accum,
-                "type": "train"
-            })
-            self.metrics_logger.log_metrics(metrics)
+        # Update learning rate AFTER optimizer step
+        self.scheduler.step()
         
-        self.global_step += 1
+        # Calculate accuracy for each task
+        with torch.no_grad():
+            accuracies = {}
+            for j in range(logits.size(1)):
+                if mask_tensor[j]:
+                    pred = (logits[0, j] > 0).float()
+                    acc = (pred == target[j]).float().item()
+                    accuracies[f'acc_task{j}'] = acc
         
-        # Periodically report memory usage
-        if self.rank == 0 and self.global_step % 1000 == 0:
-            allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
-            reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
-            print(f"Step {self.global_step} | GPU Memory: {allocated:.2f} MB allocated, {reserved:.2f} MB reserved")
-        
-        return loss.item()
-    
+        return {
+            'loss': loss.item(),
+            'lr': self.scheduler.get_last_lr()[1],
+            'spacing': spacing,
+            **accuracies
+        }
+
     def evaluate(self, val_loader):
-        """Simple evaluation on validation set"""
+        """Evaluate model on validation set"""
         self.model.eval()
         samples = 0
-        print(f"Starting evaluation on validation set...")
+        total_loss = 0.0
+        all_preds = []
+        all_targets = []
+        all_masks = []
         
-        start_time = time.time()
         with torch.no_grad():
-            for i, (chunks, labels, mask) in enumerate(val_loader):
-                # Process batch
-                try:
-                    chunks = chunks.squeeze(1).to(self.device)
-                    
-                    # Print info for first sample
-                    if i == 0:
-                        print(f"First val sample - shape: {chunks.shape}")
-                    
-                    # Limit chunks if needed
-                    max_chunks = 28
-                    if chunks.size(0) > max_chunks:
-                        chunks = chunks[:max_chunks]
-                    
-                    # Forward pass
-                    _ = self.model(chunks)
-                    samples += 1
-                    
-                    # Print progress
-                    if i % 10 == 0:
-                        print(f"Processed {i+1} validation samples")
-                        
-                except Exception as e:
-                    print(f"Error in validation sample {i}: {str(e)}")
-                    continue
+            for i, (chunks, labels, mask, spacing) in enumerate(val_loader):
+                chunks = chunks.squeeze(1).to(self.device)
+                
+                # Use max_chunks from args
+                if chunks.size(0) > self.args.max_chunks:
+                    mid_idx = chunks.size(0) // 2
+                    start_idx = max(0, mid_idx - self.args.max_chunks // 2)
+                    end_idx = min(chunks.size(0), start_idx + self.args.max_chunks)
+                    chunks = chunks[start_idx:end_idx]
+                
+                # Forward pass
+                logits = self.model(chunks, spacing)
+                
+                # Calculate loss
+                target = torch.tensor(labels, dtype=torch.float32, device=self.device)
+                mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
+                
+                loss = 0.0
+                for j in range(logits.size(1)):
+                    if mask_tensor[j]:
+                        task_loss = self.crit(logits[0, j:j+1], target[j:j+1])
+                        loss += task_loss
+                
+                # Normalize loss
+                active_tasks = mask_tensor.sum().item()
+                if active_tasks > 0:
+                    loss = loss / active_tasks
+                    total_loss += loss.item()
+                
+                # Store predictions and targets
+                all_preds.append(logits.cpu().numpy())
+                all_targets.append(labels)
+                all_masks.append(mask)
+                
+                samples += 1
         
-        # Return basic metrics
-        elapsed = time.time() - start_time
-        print(f"Evaluated {samples} samples in {elapsed:.2f}s")
+        # Calculate metrics
+        avg_loss = total_loss / max(1, samples)
         
+        # Calculate AUC and accuracy for each task
         metrics = {
             'samples_evaluated': samples,
-            'eval_time_seconds': elapsed,
-            'acc1': 0.0,  # Placeholder values 
-            'acc3': 0.0,
-            'acc6': 0.0
+            'avg_loss': avg_loss,
         }
+        
+        # Combine predictions and calculate metrics
+        preds = np.vstack(all_preds)
+        targets = np.vstack(all_targets)
+        masks = np.vstack(all_masks)
+        
+        for i in range(preds.shape[1]):
+            if i >= masks.shape[1]:
+                continue
+            valid_idx = masks[:, i].astype(bool)
+            if np.sum(valid_idx) > 0:
+                task_preds = preds[valid_idx, i]
+                task_targets = targets[valid_idx, i]
+                try:
+                    auc = roc_auc_score(task_targets, task_preds)
+                    metrics[f'auc_task{i}'] = auc
+                    
+                    # Calculate accuracy
+                    pred_labels = (task_preds > 0).astype(int)
+                    acc = np.mean(pred_labels == task_targets)
+                    metrics[f'acc_task{i}'] = acc
+                except:
+                    metrics[f'auc_task{i}'] = float('nan')
+                    metrics[f'acc_task{i}'] = float('nan')
+        
+        print(f"Evaluated {samples} samples")
+        print(f"Average loss: {avg_loss:.4f}")
+        
         return metrics
     
+    def _init_scheduler(self):
+        """Initialize the learning rate scheduler"""
+        # We'll initialize this in fit() when we have access to the dataloader
+        self.scheduler = None
+
     def fit(self, train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
+        """Train the model"""
         self.global_step = 1
         self.current_epoch = 0
+        self.train_loader = train_loader  # Store for scheduler initialization
+        
+        # Initialize scheduler now that we have access to the dataloader
+        total_steps = len(train_loader) * epochs
+        warmup_steps = self.args.warmup_steps
+        
+        self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            self.optimizer,
+            max_lr=[self.args.lr * 0.01, self.args.lr],  # Different max_lr for each param group (base, aggregator)
+            total_steps=total_steps,
+            pct_start=warmup_steps/total_steps,  # Percentage of steps for warmup
+            div_factor=25.0,  # Initial lr = max_lr/25
+            final_div_factor=1000.0  # Final lr = initial_lr/1000
+        )
         
         for epoch in range(epochs):
             self.current_epoch = epoch
@@ -380,12 +357,44 @@ class DDPFullTrainer:
             self.model.train()
             
             try:
-                for step, (chunks, labels, mask) in enumerate(train_loader, 1):
+                for step, (chunks, labels, mask, spacing) in enumerate(train_loader, 1):
                     try:
-                        self._train_step(chunks, labels, mask)
+                        # Training step
+                        step_metrics = self._train_step(chunks, labels, mask, spacing)
+                        
+                        # Print training metrics every print_every steps
+                        if step_metrics and self.args.rank == 0 and self.global_step % self.args.print_every == 0:
+                            print(f"\nStep {self.global_step} (Epoch {epoch+1}):")
+                            print(f"Loss: {step_metrics['loss']:.4f}")
+                            print(f"Learning rate: {step_metrics['lr']:.6f}")
+                            
+                            # Print accuracy for each task
+                            acc_string = ""
+                            for i in range(len(self.label_cols)):
+                                if f'acc_task{i}' in step_metrics:
+                                    acc_string += f"Acc task {i}: {step_metrics[f'acc_task{i}']:.4f} | "
+                            if acc_string:
+                                print(acc_string.rstrip(" | "))
+                            
+                            # Log training metrics to file
+                            train_metrics = {
+                                "iteration": self.global_step,
+                                "epoch": epoch,
+                                "loss": step_metrics['loss'],
+                                "lr": step_metrics['lr'],
+                                "type": "training"
+                            }
+                            
+                            # Add accuracies to metrics
+                            for i in range(len(self.label_cols)):
+                                if f'acc_task{i}' in step_metrics:
+                                    train_metrics[f'acc_task{i}'] = step_metrics[f'acc_task{i}']
+                            
+                            # Log metrics
+                            self.metrics_logger.log_metrics(train_metrics)
                         
                         # Validation - only on rank 0
-                        if val_loader and self.rank == 0 and self.global_step % self.val_every == 0:
+                        if val_loader and self.args.rank == 0 and self.global_step % self.args.val_every == 0:
                             print(f"\nReached validation point at step {self.global_step} (in epoch {epoch+1})")
                             
                             # Force garbage collection before validation
@@ -394,9 +403,9 @@ class DDPFullTrainer:
                             torch.cuda.empty_cache()
                             
                             # Log memory before validation
-                            mem_allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
-                            mem_reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
-                            print(f"Memory before validation: {mem_allocated:.2f}MB allocated, {mem_reserved:.2f}MB reserved")
+                            #mem_allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
+                            #mem_reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
+                            #print(f"Memory before validation: {mem_allocated:.2f}MB allocated, {mem_reserved:.2f}MB reserved")
                             
                             # Set a time limit for validation
                             try:
@@ -409,6 +418,8 @@ class DDPFullTrainer:
                             # Force garbage collection after validation
                             gc.collect()
                             torch.cuda.empty_cache()
+                        
+                        self.global_step += 1
                             
                     except Exception as e:
                         print(f"Error in training step at step {step}: {e}")
@@ -429,7 +440,7 @@ class DDPFullTrainer:
     def _handle_unfreezing(self, epoch, unfreeze_strategy):
         """Handle unfreezing of model parameters based on strategy and epoch"""
         # Skip handling if rank is not 0 (to avoid duplicate logs)
-        if self.rank == 0:
+        if self.args.rank == 0:
             if unfreeze_strategy == 'all':
                 # All parameters already unfrozen in DDP mode
                 if epoch == 0:
@@ -445,23 +456,13 @@ class DDPFullTrainer:
 
     def _run_validation(self, val_loader):
         """Run validation and log results"""
-        if self.rank == 0:
+        if self.args.rank == 0:
             print(f"\n=== Starting validation at step {self.global_step} ===")
             validation_start_time = time.time()
-            
-            # Track memory before validation
-            before_mem_allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
-            before_mem_reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
-            print(f"GPU Memory before validation: {before_mem_allocated:.2f}MB allocated, {before_mem_reserved:.2f}MB reserved")
             
             try:
                 # Directly call evaluate method
                 metrics = self.evaluate(val_loader)
-                
-                # Track memory after validation
-                after_mem_allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
-                after_mem_reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
-                print(f"GPU Memory after validation: {after_mem_allocated:.2f}MB allocated, {after_mem_reserved:.2f}MB reserved")
                 
                 # Calculate elapsed time
                 elapsed = time.time() - validation_start_time
@@ -472,7 +473,7 @@ class DDPFullTrainer:
                 val_metrics.update({
                     "iteration": self.global_step,
                     "epoch": self.current_epoch,
-                    "lr": self.opt.param_groups[0]['lr'],
+                    "lr": self.scheduler.get_last_lr()[0],
                     "validation_time_seconds": elapsed,
                     "type": "validation"
                 })
@@ -497,6 +498,11 @@ def main(args):
     world_size = dist.get_world_size()
     global_rank = dist.get_rank()
     torch.cuda.set_device(local_rank)
+    
+    # Add rank information to args
+    args.rank = global_rank
+    args.world_size = world_size
+    args.local_rank = local_rank
     
     # convenience so you can still run the script on one GPU
     if world_size == 1:
@@ -725,7 +731,7 @@ def main(args):
     # Create parameter groups with different learning rates
     # Define our own parameter groups manually after DDP wrapping
     main_lr = args.lr
-    base_lr = args.lr * 0.1
+    base_lr = args.lr * 0.01  # Reduced from 0.1 to 0.01 for base model
 
     # Option 1: Use named_parameters to separate base and aggregator
     base_params = []
@@ -741,7 +747,7 @@ def main(args):
 
     # Configure optimizer with parameter groups
     param_groups = [
-        {'params': base_params, 'lr': base_lr},  # Lower LR for pretrained DinoVisionTransformer
+        {'params': base_params, 'lr': base_lr},  # Much lower LR for pretrained DinoVisionTransformer
         {'params': agg_params, 'lr': main_lr}    # Higher LR for aggregator
     ]
 
@@ -770,18 +776,7 @@ def main(args):
     logging.info("Setting unfreeze_strategy to 'all' to avoid DDP synchronization issues")
 
     # Create the trainer
-    trainer = DDPFullTrainer(
-        model=model,
-        optimizer=optimizer,
-        criterion=criterion,
-        device=device,
-        accum_steps=args.accum_steps,
-        print_every=args.print_every,
-        val_every=args.val_every,
-        rank=global_rank,
-        world_size=world_size,
-        metrics_dir=args.metrics_dir if global_rank == 0 else None
-    )
+    trainer = DDPFullTrainer(args, label_cols)
     
     # Train the model
     trainer.fit(
@@ -832,6 +827,38 @@ def main(args):
         print(f"Total GPU Memory: {torch.cuda.get_device_properties(device).total_memory / (1024 ** 3):.2f} GB")
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='DDP Training')
+    
+    # Training parameters
+    parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
+    parser.add_argument('--batch_size', type=int, default=1, help='Batch size per GPU')
+    parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
+    parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay')
+    parser.add_argument('--warmup_steps', type=int, default=1000, help='Warmup steps for learning rate scheduling')
+    parser.add_argument('--val_every', type=int, default=100, help='Validation frequency in steps')
+    
+    # Model parameters
+    parser.add_argument('--pretrained', type=str, default='dino', help='Pretrained model type')
+    parser.add_argument('--num_tasks', type=int, default=6, help='Number of classification tasks')
+    parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate')
+    
+    # DDP parameters
+    parser.add_argument('--world_size', type=int, default=1, help='Number of GPUs')
+    parser.add_argument('--dist_url', type=str, default='env://', help='Distributed URL')
+    parser.add_argument('--dist_backend', type=str, default='nccl', help='Distributed backend')
+    
+    # Data parameters
+    parser.add_argument('--num_workers', type=int, default=4, help='Number of data loading workers')
+    parser.add_argument('--pin_memory', type=bool, default=True, help='Pin memory in data loader')
+    
+    # Logging parameters
+    parser.add_argument('--log_dir', type=str, default='logs', help='Log directory')
+    parser.add_argument('--save_dir', type=str, default='checkpoints', help='Save directory')
+    
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Multi-GPU Training with DDP (Full Model Copies)")
     parser.add_argument("--csv", type=str, default="/rsrch1/ip/msalehjahromi/codes/FineTune/nlst_event_train_val_test_.csv", 
@@ -846,6 +873,8 @@ if __name__ == "__main__":
                         help="Number of workers for data loading")
     parser.add_argument("--epochs", type=int, default=10, 
                         help="Number of epochs to train for")
+    parser.add_argument("--warmup-steps", type=int, default=1000,
+                        help="Number of warmup steps for learning rate scheduling")
     parser.add_argument("--lr", type=float, default=1e-4, 
                         help="Learning rate")
     parser.add_argument("--weight-decay", type=float, default=1e-4, 
@@ -869,6 +898,7 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-dir", type=str, 
                        default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
                        help="Directory to save training metrics")
+    parser.add_argument("--max-chunks", type=int, default=66, help="Maximum number of chunks to process per sample")
     
     args = parser.parse_args()
     

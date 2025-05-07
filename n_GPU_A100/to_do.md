@@ -1,4 +1,7 @@
 1. Add the spacing!
+    - remember how CombinedModel works?
+    - why             with torch.no_grad():  # Frozen backbone by default
+                chunk_feat = self.base(x[i].unsqueeze(0))
 2. Giving more chance for positive to be selected! in data loader.
 3. Data augmentation.
 4. Attention loss.

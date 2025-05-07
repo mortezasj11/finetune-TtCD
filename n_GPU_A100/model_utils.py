@@ -8,11 +8,12 @@ import numpy as np
 import nibabel as nib
 import json
 import time
+import subprocess
 from torchmetrics.functional import auroc
 from sklearn.metrics import roc_auc_score
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
-from typing import List
+from typing import Dict, Any, List
 
 # Import DinoVisionTransformer class from dinov2 package for reusability
 import sys
@@ -20,62 +21,285 @@ sys.path.insert(0, "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6")
 
 from dinov2.models.vision_transformer import DinoVisionTransformer
 
+# ===================== Add utility functions from 2_run_fineTune_ddp_full.py =====================
+
+def install_packages():
+    commands = [
+        ["pip", "install", "--extra-index-url", "https://download.pytorch.org/whl/cu117", "torch==2.0.0", "torchvision==0.15.0", "omegaconf", "torchmetrics==0.10.3", "fvcore", "iopath", "xformers==0.0.18", "submitit","numpy<2.0"],
+        ["pip", "install", "--extra-index-url", "https://pypi.nvidia.com", "cuml-cu11"],
+        ["pip", "install", "black==22.6.0", "flake8==5.0.4", "pylint==2.15.0"],
+        ["pip", "install", "mmsegmentation==0.27.0"],
+        ["pip", "install", "mmcv-full==1.5.0"]
+    ]
+    for i, command in enumerate(commands):
+        result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+
+def prepare_balanced_validation(csv_path):
+    """Prepare a balanced validation set from the original data"""
+    df = pd.read_csv(csv_path)
+    
+    # Print original validation set size
+    print(f"Original validation set size: {df[df['split']=='val'].shape}")
+
+    val_df = df[df.split == 'val'].copy()
+    val_df = val_df[val_df.file_path.notna()].reset_index(drop=True)
+
+    # Get positive and negative samples for 6-year-cancer
+    pos_samples = val_df[val_df['6-year-cancer'] == 1]
+    neg_samples = val_df[val_df['6-year-cancer'] == 0]
+
+    print("\nBefore balancing:")
+    print(f"Positive samples: {len(pos_samples)}")
+    print(f"Negative samples: {len(neg_samples)}")
+
+    # Calculate sizes for balanced set
+    n_pos = len(pos_samples)
+    n_neg = len(neg_samples)
+    target_size = min(n_pos, n_neg)
+
+    # Sample equally from positive and negative
+    balanced_pos = pos_samples.sample(n=target_size, random_state=42)
+    balanced_neg = neg_samples.sample(n=target_size, random_state=42)
+
+    # Combine balanced samples
+    balanced_val_df = pd.concat([balanced_pos, balanced_neg]).reset_index(drop=True)
+
+    print("\nAfter balancing:")
+    print(f"Balanced validation set shape: {balanced_val_df.shape}")
+
+    # Create new dataframe correctly
+    df_new = df.copy()
+    # Remove all validation samples
+    df_new = df_new[df_new.split != 'val']
+    # Add balanced validation samples
+    balanced_val_df['split'] = 'val'  # Ensure split column is set
+    df_new = pd.concat([df_new, balanced_val_df], ignore_index=True)
+
+    print("\nFinal shapes:")
+    print(f"New validation set shape: {df_new[df_new['split']=='val'].shape}")
+    print(f"Total dataset shape: {df_new.shape}")
+
+    # Save the balanced validation set
+    temp_csv_path = csv_path.replace('.csv', '_balanced.csv')
+    df_new.to_csv(temp_csv_path, index=False)
+    
+    return temp_csv_path
+
+
+def calculate_auc(predictions, targets, mask=None):
+    """Calculate AUC score for binary classification"""
+    if mask is not None:
+        valid_indices = np.where(mask)[0]
+        if len(valid_indices) == 0:
+            return float('nan')
+        predictions = predictions[valid_indices]
+        targets = targets[valid_indices]
+    
+    # Ensure we have both classes present
+    if np.all(targets == 1) or np.all(targets == 0):
+        return float('nan')
+    
+    try:
+        return roc_auc_score(targets, predictions)
+    except:
+        return float('nan')
+
+
+# Metrics logger for tracking training progress
+class MetricsLogger:
+    def __init__(self, rank: int, metrics_dir: str = None):
+        self.rank = rank
+        self.should_save_metrics = (rank == 0 and metrics_dir is not None)
+        
+        if self.should_save_metrics:
+            self.metrics_dir = metrics_dir
+            os.makedirs(self.metrics_dir, exist_ok=True)
+            
+            # Create metrics filename with timestamp
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            self.metrics_filename = os.path.join(
+                self.metrics_dir, 
+                f"training_metrics_nGPU_DDP_{timestamp}.jsonl"
+            )
+            
+            print(f"Will save metrics to: {self.metrics_filename}")
+    
+    def log_metrics(self, metrics_dict: Dict[str, Any]):
+        """Log metrics to file and console"""
+        if not self.should_save_metrics:
+            return
+            
+        # Log to console for both training and validation metrics
+        log_str = " | ".join([f"{k}: {v:.4f}" if isinstance(v, float) else f"{k}: {v}" 
+                            for k, v in metrics_dict.items()])
+        import logging
+        logging.info(log_str)
+        
+        # Always save to file
+        try:
+            with open(self.metrics_filename, 'a') as f:
+                f.write(json.dumps(metrics_dict) + '\n')
+        except Exception as e:
+            print(f"ERROR saving metrics: {e}")
+
+
+class MetricsCalculator:
+    def __init__(self):
+        self.reset()
+    
+    def reset(self):
+        """Reset all metrics"""
+        self.total_loss = 0.0
+        self.samples_seen = 0
+        
+        # Accuracy tracking
+        self.correct_1yr = 0
+        self.correct_3yr = 0
+        self.correct_6yr = 0
+        
+        # Sample counting
+        self.total_1yr_samples = 0
+        self.total_3yr_samples = 0
+        self.total_6yr_samples = 0
+        
+        # Positive sample tracking
+        self.pos_1yr = 0
+        self.pos_3yr = 0
+        self.pos_6yr = 0
+    
+    def update_metrics(self, predictions, targets, mask, loss):
+        """Update metrics for a single batch"""
+        # Update loss
+        self.total_loss += loss
+        self.samples_seen += 1
+        
+        # Update accuracy and counts for each time point
+        if mask[0]:  # 1-year
+            is_correct = (predictions[0] == targets[0]).float().item()
+            self.correct_1yr += is_correct
+            self.total_1yr_samples += 1
+            self.pos_1yr += int(targets[0].item() == 1)
+            
+        if mask[1]:  # 3-year
+            is_correct = (predictions[1] == targets[1]).float().item()
+            self.correct_3yr += is_correct
+            self.total_3yr_samples += 1
+            self.pos_3yr += int(targets[1].item() == 1)
+            
+        if mask[2]:  # 6-year
+            is_correct = (predictions[2] == targets[2]).float().item()
+            self.correct_6yr += is_correct
+            self.total_6yr_samples += 1
+            self.pos_6yr += int(targets[2].item() == 1)
+    
+    def get_metrics(self) -> Dict[str, Any]:
+        """Calculate and return current metrics"""
+        metrics = {
+            "total_loss": self.total_loss / max(1, self.samples_seen),
+            "acc1": self.correct_1yr / max(1, self.total_1yr_samples),
+            "acc3": self.correct_3yr / max(1, self.total_3yr_samples),
+            "acc6": self.correct_6yr / max(1, self.total_6yr_samples),
+            "pos_count_1yr": f"{self.pos_1yr}-{self.total_1yr_samples - self.pos_1yr}",
+            "pos_count_3yr": f"{self.pos_3yr}-{self.total_3yr_samples - self.pos_3yr}",
+            "pos_count_6yr": f"{self.pos_6yr}-{self.total_6yr_samples - self.pos_6yr}"
+        }
+        return metrics
+
+# ===================== End of added utility functions =====================
+
+# class CombinedModel(nn.Module):
+#     def __init__(
+#         self,
+#         base_model,
+#         chunk_feat_dim=768,
+#         hidden_dim=1024,
+#         num_tasks=1,
+#         num_attn_heads=8,
+#         num_layers=2,
+#         dropout_rate=0.2,
+#         lse_tau=1.0, #As τ→0 this approaches hard‐max over chunks; with larger τ it's smoother.
+#     ):
+#         super().__init__()
+#         self.base = base_model
+#         self.lse_tau = lse_tau
+        
+#         encoder_layer = nn.TransformerEncoderLayer(
+#             d_model=chunk_feat_dim,
+#             nhead=num_attn_heads,
+#             dim_feedforward=hidden_dim,
+#             dropout=dropout_rate,
+#             batch_first=True,
+#         )
+#         self.transformer = nn.TransformerEncoder(
+#             encoder_layer, 
+#             num_layers=num_layers)
+#         self.classifier = nn.Linear(chunk_feat_dim, num_tasks)
+        
+#     def forward(self, x, spacing=None):  # x: [S, C, H, W] - Input chunks, spacing: (dx, dy, dz)
+#         batch_size = 1  # Assume batch_size is always 1 (per-patient processing)
+#         num_chunks = x.size(0)
+#         features = []
+#         for i in range(num_chunks):
+#             with torch.no_grad():  # Frozen backbone by default
+#                 chunk_feat = self.base(x[i].unsqueeze(0))  # chunk_feat: [1, D] - Per-chunk embedding
+#             features.append(chunk_feat)  # list of S tensors, each [1, D]
+        
+#         features = torch.cat(features, dim=0)  # features: [S, D] - Stacked chunk embeddings
+#         aggregated = self.transformer(features.unsqueeze(0))  # aggregated: [1, S, D] - Transformer-encoded sequence
+#         pooled = torch.mean(aggregated, dim=1)  # pooled: [1, D] - Global average over S chunks
+#         #pooled = self.lse_tau * torch.logsumexp(aggregated / self.lse_tau, dim=1)
+#         outputs = self.classifier(pooled)  # outputs: [1, num_tasks] - Final predictions
+#         return outputs
+    
 class CombinedModel(nn.Module):
     def __init__(
         self,
         base_model,
-        chunk_feat_dim=768,
-        hidden_dim=1024,
-        num_tasks=1,
-        num_attn_heads=8,
-        num_layers=2,
-        dropout_rate=0.2,
+        chunk_feat_dim: int = 768,
+        hidden_dim: int = 1024,
+        num_tasks: int = 1,
+        num_attn_heads: int = 8,
+        num_layers: int = 2,
+        dropout_rate: float = 0.2,
+        lse_tau: float = 1.0,
     ):
         super().__init__()
-        self.base = base_model
-        
-        # Transformer aggregator for sequence modeling
+        self.base = base_model           # frozen or fine-tuned elsewhere
+        self.lse_tau = lse_tau
+        self.chunk_feat_dim = chunk_feat_dim + 3   # 768 + 3 = 771
+
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=chunk_feat_dim,
+            d_model=self.chunk_feat_dim,
             nhead=num_attn_heads,
             dim_feedforward=hidden_dim,
             dropout=dropout_rate,
             batch_first=True,
         )
         self.transformer = nn.TransformerEncoder(
-            encoder_layer, 
-            num_layers=num_layers
+            encoder_layer, num_layers=num_layers
         )
-        
-        # Final classifier(s)
-        self.classifier = nn.Linear(chunk_feat_dim, num_tasks)
-        
-    def forward(self, x):
-        batch_size = 1  # Assume batch_size is always 1 (per-patient processing)
-        num_chunks = x.size(0)
-        
-        # Process all chunks with the base model
-        features = []
-        for i in range(num_chunks):
-            # Get CLS token embedding for this chunk
-            with torch.no_grad():  # Frozen backbone by default
-                chunk_feat = self.base(x[i].unsqueeze(0))
-            
-            features.append(chunk_feat)
-        
-        # Stack features from all chunks [num_chunks, feat_dim]
-        features = torch.cat(features, dim=0)
-        
-        # Apply transformer to aggregate chunk features
-        aggregated = self.transformer(features.unsqueeze(0))  # [1, num_chunks, feat_dim]
-        
-        # Global average pooling across chunks
-        pooled = torch.mean(aggregated, dim=1)  # [1, feat_dim]
-        
-        # Apply the classifier to get outputs for each task
-        outputs = self.classifier(pooled)  # [1, num_tasks]
-        
-        return outputs
+        self.classifier = nn.Linear(self.chunk_feat_dim, num_tasks)
+
+    #@torch.no_grad()          # remove this decorator if you want the base to train
+    def _chunk_embed(self, chunk):
+        return self.base(chunk.unsqueeze(0))       # → [1, 768]
+
+    def forward(self, x: torch.Tensor, spacing=(1.0, 1.0, 1.0)):
+        """
+        x:       [S, C, H, W]  – S chunks for a single patient
+        spacing: (dx, dy, dz)  – voxel size in mm (or any scale units)
+        """
+        S = x.size(0)
+        device = x.device
+        dtype  = x.dtype
+        feats = torch.cat([self._chunk_embed(x[i]) for i in range(S)], dim=0)  # [S, 768]
+        spacing_vec = torch.tensor(spacing, dtype=dtype, device=device).expand(S, 3)
+        feats = torch.cat([feats, spacing_vec], dim=1)                        # [S, 771]
+        encoded = self.transformer(feats.unsqueeze(0))  # [1, S, 771]
+        pooled = self.lse_tau * torch.logsumexp(encoded / self.lse_tau, dim=1)  # [1, 771]
+        return self.classifier(pooled)       # [1, num_tasks]
+
     
     def freeze_base_model(self):
         """Freeze all parameters in the base model"""
@@ -161,7 +385,9 @@ class NLSTDataset(Dataset):
         row = self.df.iloc[idx]  # Shape: pandas.Series (1D row data)
         nii_path = row.file_path  # Shape: str (file path)
         #print(f"[Data] Loading volume {idx}: {nii_path}")
-        vol = nib.load(nii_path).get_fdata().astype(np.float32)  # Shape: [H, W, D] 3D volume
+        nii = nib.load(nii_path)
+        vol = nii.get_fdata().astype(np.float32)  # Shape: [H, W, D] 3D volume
+        spacing = nii.header.get_zooms()  # Get voxel spacing (dx, dy, dz)
         H, W, D = vol.shape
         #print(f"[Data] Volume shape: {vol.shape}")
         num_chunks = D // self.proc.chunk_depth  # Shape: scalar (number of chunks)
@@ -182,7 +408,7 @@ class NLSTDataset(Dataset):
         chunks = torch.stack(windows, dim=0)  # Shape: [num_chunks, chunk_depth, 448, 448]
         labels = row[self.labels].to_numpy(dtype=np.float32)  # Shape: [num_labels] (e.g., [3] for 3 time points)
         mask = (labels != -1)  # Shape: [num_labels] boolean mask
-        return chunks, labels, mask  # Return shapes: [num_chunks, chunk_depth, 448, 448], [num_labels], [num_labels]
+        return chunks, labels, mask, spacing  # Return shapes: [num_chunks, chunk_depth, 448, 448], [num_labels], [num_labels], (dx, dy, dz)
 
 class Trainer:
     def __init__(
@@ -217,7 +443,7 @@ class Trainer:
                 f"training_metrics_nGPU_A100_{timestamp}.jsonl"
             )
     
-    def _train_step(self, chunks, labels, mask):
+    def _train_step(self, chunks, labels, mask, spacing):
         """Training step for one patient (with all chunks)"""
         running_loss = 0.0
         
@@ -283,7 +509,7 @@ class Trainer:
         all_masks = []
         
         with torch.no_grad():
-            for chunks, labels, mask in val_loader:
+            for chunks, labels, mask, spacing in val_loader:
                 chunks = chunks.to(self.device)
                 
                 # Process all chunks with the base model
@@ -403,8 +629,8 @@ class Trainer:
             epoch_loss = 0.0
             samples_seen = 0
             
-            for chunks, labels, mask in train_loader:
-                step_loss = self._train_step(chunks, labels, mask)
+            for chunks, labels, mask, spacing in train_loader:
+                step_loss = self._train_step(chunks, labels, mask, spacing)
                 epoch_loss += step_loss
                 samples_seen += 1
                 
