@@ -8,7 +8,7 @@
   - Transformed model's feature dimension from 768 to 771
 - [x] **Data Augmentation**
   - Implemented random flips, rotations, scaling, and Gaussian 
-- [ ] **Load the Latest Trained Dinov2**
+- [x] **Load the Latest Trained Dinov2**
 
 - [ ] **Class Balancing**
   - Implemented weighted loss for handling imbalanced classes
@@ -34,13 +34,18 @@
    - Explore alternative losses from Sybil
    -[x] Investigate maximum-based data aggregation 
 
-## Key Hyperparameters
-- `epochs`: Number of training cycles
-- `accum-steps`: Gradient accumulation steps
-- `max-chunks`: Maximum number of chunks per sample
-- `batch-size`: Samples per forward pass
-- `lr`: Learning rate
-- `warmup-steps`: Steps for learning rate warmup
+
+# Train Test
+## Key Hyperparameters  (**I need to remove 88 on Validation**)
+- `epochs`: 50
+- `accum-steps`: at least 1000
+- `max-chunks`: 66 
+- `batch-size`: 1
+- `lr`:  ?
+- `warmup-steps`: 5k
+- `print-every` : 1000
+- `val-every` : 50000
+
 
 # Remove 100 in validation now that it works. 
 

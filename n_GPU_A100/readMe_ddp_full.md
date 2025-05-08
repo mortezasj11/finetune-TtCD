@@ -394,3 +394,317 @@ destroy_process_group()
    - Metrics logged to disk for later analysis
 
 This approach maximizes GPU utilization while ensuring stable training across different device configurations and scanning protocols.
+
+# Loading Saved Models
+
+Models trained with this system are saved in multiple formats to provide flexibility for different use cases. Below are instructions for loading these saved models.
+
+## Available Model Formats
+
+1. **Combined Model**: The complete model including both base ViT and aggregator components
+   - Saved as `model_epoch_X.pt` or `model_final.pt`
+
+2. **Separated Components**:
+   - Base Model: DinoVisionTransformer backbone saved as `base_model_epoch_X.pt` or `base_model_final.pt`
+   - Aggregator: Transformer aggregator saved as `aggregator_epoch_X.pt` or `aggregator_final.pt`
+
+3. **Checkpoint Metadata**: JSON file with model configuration and training details
+   - Saved as `metadata_epoch_X.json` or `metadata_final.json`
+
+All files are stored in the `checkpoints` directory under the specified output folder.
+
+## Loading the Combined Model
+
+```python
+import torch
+from model_utils import CombinedModel, DinoVisionTransformer
+from functools import partial
+from dinov2.layers import MemEffAttention, NestedTensorBlock as Block
+
+# First create an empty model with the same architecture
+def load_combined_model(checkpoint_path, metadata_path=None):
+    # Load metadata to get model configuration
+    if metadata_path:
+        import json
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+            
+        # Extract model configuration from metadata
+        config = metadata['model_config']
+        num_tasks = len(metadata['label_cols'])
+        num_attn_heads = config['num_attn_heads']
+        num_layers = config['num_layers'] 
+        dropout_rate = config['dropout_rate']
+    else:
+        # Default configuration if metadata is not available
+        num_tasks = 6  # Default for NLST dataset
+        num_attn_heads = 4
+        num_layers = 2
+        dropout_rate = 0.3
+    
+    # Create base model
+    base_model = DinoVisionTransformer(
+        img_size=448,
+        patch_size=16,  # Or 32, depending on your training
+        drop_path_rate=0.0,
+        block_chunks=1,
+        drop_path_uniform=True,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        mlp_ratio=4,
+        block_fn=partial(Block, attn_class=MemEffAttention),
+        num_register_tokens=5,
+        init_values=1.0e-05,
+    )
+    
+    # Initialize cls_token
+    base_model.cls_token = torch.nn.Parameter(torch.zeros(1, 1, 768))
+    torch.nn.init.normal_(base_model.cls_token, std=0.02)
+    
+    # Materialize tokens
+    def materialize_tokens_(m, dev):
+        with torch.no_grad():
+            for n in ["cls_token", "register_tokens", "mask_token"]:
+                if hasattr(m, n) and getattr(m, n).storage().size() == 0:
+                    real = torch.zeros_like(getattr(m, n), device=dev)
+                    torch.nn.init.normal_(real, std=0.02)
+                    setattr(m, n, torch.nn.Parameter(real, requires_grad=True))
+    
+    # Materialize tokens on CPU first
+    materialize_tokens_(base_model, torch.device('cpu'))
+    
+    # Create combined model
+    model = CombinedModel(
+        base_model=base_model,
+        chunk_feat_dim=768,
+        hidden_dim=1024,
+        num_tasks=num_tasks,
+        num_attn_heads=num_attn_heads,
+        num_layers=num_layers,
+        dropout_rate=dropout_rate
+    )
+    
+    # Load the state dict from checkpoint
+    model.load_state_dict(torch.load(checkpoint_path, map_location='cpu'))
+    
+    return model
+
+# Usage example
+model = load_combined_model(
+    'output/checkpoints/model_final.pt',
+    'output/checkpoints/metadata_final.json'
+)
+model = model.to('cuda')  # Move to GPU
+model.eval()  # Set to evaluation mode
+```
+
+## Loading Individual Components
+
+### Loading the Base Model Only
+
+```python
+import torch
+from model_utils import DinoVisionTransformer
+from functools import partial
+from dinov2.layers import MemEffAttention, NestedTensorBlock as Block
+
+def load_base_model(checkpoint_path):
+    # Create base model with same architecture as during training
+    base_model = DinoVisionTransformer(
+        img_size=448,
+        patch_size=16,  # Or 32, depending on your training
+        drop_path_rate=0.0,
+        block_chunks=1,
+        drop_path_uniform=True,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        mlp_ratio=4,
+        block_fn=partial(Block, attn_class=MemEffAttention),
+        num_register_tokens=5,
+        init_values=1.0e-05,
+    )
+    
+    # Initialize and materialize tokens
+    base_model.cls_token = torch.nn.Parameter(torch.zeros(1, 1, 768))
+    torch.nn.init.normal_(base_model.cls_token, std=0.02)
+    
+    # Load the state dict
+    base_model.load_state_dict(torch.load(checkpoint_path, map_location='cpu'))
+    
+    return base_model
+
+# Usage example
+base_model = load_base_model('output/checkpoints/base_model_final.pt')
+base_model = base_model.to('cuda')
+```
+
+### Loading the Aggregator Only
+
+```python
+import torch
+from model_utils import SelfAttentionAggregator
+
+def load_aggregator(checkpoint_path, metadata_path=None):
+    # Load metadata if available
+    if metadata_path:
+        import json
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+            
+        # Extract model configuration
+        config = metadata['model_config']
+        num_tasks = len(metadata['label_cols'])
+        num_attn_heads = config['num_attn_heads']
+        num_layers = config['num_layers'] 
+        dropout_rate = config['dropout_rate']
+    else:
+        # Default configuration
+        num_tasks = 6
+        num_attn_heads = 4
+        num_layers = 2
+        dropout_rate = 0.3
+    
+    # Create aggregator with same architecture as during training
+    aggregator = SelfAttentionAggregator(
+        input_dim=768,
+        hidden_dim=1024,
+        num_tasks=num_tasks,
+        num_heads=num_attn_heads,
+        num_layers=num_layers,
+        dropout=dropout_rate
+    )
+    
+    # Load the state dict
+    aggregator.load_state_dict(torch.load(checkpoint_path, map_location='cpu'))
+    
+    return aggregator
+
+# Usage example
+aggregator = load_aggregator(
+    'output/checkpoints/aggregator_final.pt',
+    'output/checkpoints/metadata_final.json'
+)
+aggregator = aggregator.to('cuda')
+```
+
+## Loading for Inference
+
+For inference or prediction on new data, you can use the following pattern:
+
+```python
+import torch
+import numpy as np
+from model_utils import VolumeProcessor, CombinedModel
+
+def process_and_predict(ct_volume, model, processor, spacing=None):
+    """
+    Process a CT volume and make predictions
+    
+    Args:
+        ct_volume: 3D numpy array with CT volume data
+        model: Loaded CombinedModel
+        processor: VolumeProcessor instance
+        spacing: Tuple of (dx, dy, dz) voxel dimensions in mm
+    
+    Returns:
+        Predicted probabilities for each task
+    """
+    # Default spacing if not provided
+    if spacing is None:
+        spacing = [1.0, 1.0, 1.0]
+    
+    # Process volume into chunks
+    chunks = processor.process_volume(ct_volume)
+    chunks_tensor = torch.tensor(chunks, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
+    
+    # If too many chunks, select center portion
+    max_chunks = 66  # Same as during training
+    if chunks_tensor.size(1) > max_chunks:
+        mid_idx = chunks_tensor.size(1) // 2
+        start_idx = max(0, mid_idx - max_chunks // 2)
+        end_idx = min(chunks_tensor.size(1), start_idx + max_chunks)
+        chunks_tensor = chunks_tensor[:, start_idx:end_idx]
+    
+    # Make predictions
+    model.eval()
+    with torch.no_grad():
+        chunks_tensor = chunks_tensor.to(next(model.parameters()).device)
+        logits = model(chunks_tensor, spacing)
+        probs = torch.sigmoid(logits)[0].cpu().numpy()  # Convert to probabilities
+    
+    return probs
+
+# Usage example
+model = load_combined_model('output/checkpoints/model_final.pt')
+model = model.to('cuda')
+processor = VolumeProcessor(chunk_depth=3, out_size=(448, 448))
+
+# Example CT volume (replace with actual data loading)
+ct_volume = np.random.randn(512, 512, 300)  # Example shape
+spacing = [0.75, 0.75, 1.25]  # Example voxel dimensions in mm
+
+# Get predictions
+predictions = process_and_predict(ct_volume, model, processor, spacing)
+print(f"Predictions: {predictions}")
+print(f"6-year cancer risk: {predictions[5]:.4f}")
+```
+
+## Finding the Best Checkpoint
+
+To identify the best performing model from your training checkpoints:
+
+```python
+import os
+import json
+import pandas as pd
+
+def find_best_checkpoint(metrics_dir, output_dir, metric='auc_task5'):
+    """
+    Find the best checkpoint based on a specific metric
+    
+    Args:
+        metrics_dir: Directory with metrics JSON files
+        output_dir: Directory with model checkpoints
+        metric: Metric to optimize (e.g., 'auc_task5' for 6-year cancer prediction)
+    
+    Returns:
+        Path to the best checkpoint
+    """
+    # Load all validation metrics
+    metrics_files = [f for f in os.listdir(metrics_dir) if f.endswith('.json')]
+    all_metrics = []
+    
+    for file in metrics_files:
+        with open(os.path.join(metrics_dir, file), 'r') as f:
+            metrics = json.load(f)
+            if 'type' in metrics and metrics['type'] == 'validation':
+                all_metrics.append(metrics)
+    
+    # Convert to DataFrame and find best epoch
+    df = pd.DataFrame(all_metrics)
+    if metric in df.columns:
+        best_idx = df[metric].idxmax()
+        best_epoch = df.iloc[best_idx]['epoch']
+        best_val = df.iloc[best_idx][metric]
+        print(f"Best {metric}: {best_val:.4f} at epoch {best_epoch}")
+        
+        # Determine checkpoint path
+        if best_epoch % 5 == 0:  # We save checkpoints every 5 epochs
+            checkpoint_path = os.path.join(output_dir, 'checkpoints', f'model_epoch_{best_epoch}.pt')
+            if os.path.exists(checkpoint_path):
+                return checkpoint_path
+    
+    # Default to final checkpoint if no better one found
+    return os.path.join(output_dir, 'checkpoints', 'model_final.pt')
+
+# Usage example
+best_model_path = find_best_checkpoint(
+    'multiGPU/metrics_multi_gpu', 
+    'output_ddp_full'
+)
+print(f"Best model checkpoint: {best_model_path}")
+```
+
+This comprehensive guide should help you effectively load and utilize the models saved during the distributed training process, whether you need the complete model or just specific components for transfer learning or inference.

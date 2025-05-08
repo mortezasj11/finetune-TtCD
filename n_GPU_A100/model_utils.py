@@ -374,8 +374,8 @@ augment_3_channel = T.Compose([
     T.RandomHorizontalFlip(),
     T.RandomVerticalFlip(),
     T.RandomRotation(10),           # ±10°
-    T.RandomAffine(degrees=0, translate=(0.05, 0.05), scale=(0.9, 1.1)),
-    T.GaussianBlur(kernel_size=5, sigma=(0.1, 1.5)),
+    T.RandomAffine(degrees=0, translate=(0.05, 0.05), scale=(0.98, 1.02)),
+    T.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0)),
 ])
 
 class NLSTDataset(Dataset):
@@ -889,3 +889,158 @@ def main(args):
     dist.barrier()
     
     # Rest of your code...
+
+class ModelSaver:
+    """
+    Utility class to handle model saving and checkpointing.
+    
+    This class handles:
+    1. Saving regular checkpoints at specified intervals
+    2. Saving separate components of a model (base model and aggregator)
+    3. Saving metadata about the checkpoint
+    """
+    
+    def __init__(self, output_dir, rank=0):
+        """
+        Initialize the model saver.
+        
+        Args:
+            output_dir (str): Directory to save checkpoints to
+            rank (int): Process rank (only rank 0 will save)
+        """
+        self.rank = rank
+        self.output_dir = output_dir
+        self.checkpoint_dir = os.path.join(output_dir, 'checkpoints')
+        
+        if self.rank == 0:
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
+            print(f"Will save checkpoints to {self.checkpoint_dir}")
+    
+    def save_checkpoint(self, model, epoch, global_step, metadata=None, is_final=False, save_components=True):
+        """
+        Save model checkpoint.
+        
+        Args:
+            model: The model to save (should be a DDP wrapped model)
+            epoch (int): Current epoch
+            global_step (int): Current global step
+            metadata (dict, optional): Additional metadata to save
+            is_final (bool): Whether this is the final checkpoint
+            save_components (bool): Whether to save model components separately
+        """
+        if self.rank != 0:
+            return
+        
+        # Determine checkpoint filename
+        if is_final:
+            checkpoint_name = 'model_final.pt'
+        else:
+            checkpoint_name = f'model_epoch_{epoch}.pt'
+        
+        checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
+        
+        # Save the combined model
+        torch.save(
+            model.module.state_dict(), 
+            checkpoint_path
+        )
+        
+        # Save components separately if requested
+        if save_components:
+            self._save_model_components(model, epoch, is_final)
+        
+        # Save metadata
+        self._save_metadata(model, epoch, global_step, metadata, is_final)
+        
+        print(f"Saved checkpoint at epoch {epoch} to {checkpoint_path}")
+    
+    def _save_model_components(self, model, epoch, is_final=False):
+        """
+        Save base model and aggregator components separately.
+        
+        Args:
+            model: The model to save components of
+            epoch (int): Current epoch
+            is_final (bool): Whether this is the final checkpoint
+        """
+        # Extract state dictionaries
+        combined_state_dict = model.module.state_dict()
+        
+        # Create separate state dictionaries
+        base_state_dict = {}
+        aggregator_state_dict = {}
+        
+        for name, param in combined_state_dict.items():
+            if name.startswith('base.'):
+                base_state_dict[name.replace('base.', '')] = param
+            else:
+                aggregator_state_dict[name] = param
+        
+        # Determine component checkpoint filenames
+        if is_final:
+            base_checkpoint_name = 'base_model_final.pt'
+            aggregator_checkpoint_name = 'aggregator_final.pt'
+        else:
+            base_checkpoint_name = f'base_model_epoch_{epoch}.pt'
+            aggregator_checkpoint_name = f'aggregator_epoch_{epoch}.pt'
+        
+        # Save base model
+        torch.save(
+            base_state_dict, 
+            os.path.join(self.checkpoint_dir, base_checkpoint_name)
+        )
+        
+        # Save aggregator
+        torch.save(
+            aggregator_state_dict, 
+            os.path.join(self.checkpoint_dir, aggregator_checkpoint_name)
+        )
+        
+        print(f"Saved model components to:")
+        print(f"  Base: {base_checkpoint_name}")
+        print(f"  Aggregator: {aggregator_checkpoint_name}")
+    
+    def _save_metadata(self, model, epoch, global_step, extra_metadata=None, is_final=False):
+        """
+        Save metadata about the checkpoint.
+        
+        Args:
+            model: The model
+            epoch (int): Current epoch
+            global_step (int): Current global step
+            extra_metadata (dict, optional): Additional metadata to save
+            is_final (bool): Whether this is the final checkpoint
+        """
+        # Create basic metadata
+        metadata = {
+            'epoch': epoch,
+            'global_step': global_step,
+            'date': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'is_final': is_final,
+        }
+        
+        # Add model configuration if available
+        if hasattr(model.module, 'chunk_feat_dim'):
+            metadata['model_config'] = {
+                'chunk_feat_dim': getattr(model.module, 'chunk_feat_dim', 768),
+                'hidden_dim': 1024,  # Use default value if attribute not present
+                'num_tasks': getattr(model.module, 'classifier').out_features if hasattr(model.module, 'classifier') else 6,
+            }
+            
+            # Add transformer configuration if available
+            if hasattr(model.module, 'transformer') and hasattr(model.module.transformer, 'layers'):
+                transformer = model.module.transformer
+                metadata['model_config'].update({
+                    'num_attn_heads': transformer.layers[0].self_attn.num_heads if hasattr(transformer.layers[0], 'self_attn') else 8,
+                    'num_layers': len(transformer.layers),
+                    'dropout_rate': transformer.layers[0].dropout.p if hasattr(transformer.layers[0], 'dropout') else 0.2,
+                })
+        
+        # Add extra metadata if provided
+        if extra_metadata:
+            metadata.update(extra_metadata)
+        
+        # Save metadata
+        metadata_filename = f'metadata_{"final" if is_final else f"epoch_{epoch}"}.json'
+        with open(os.path.join(self.checkpoint_dir, metadata_filename), 'w') as f:
+            json.dump(metadata, f, indent=2)

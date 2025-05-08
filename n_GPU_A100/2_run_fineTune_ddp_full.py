@@ -28,7 +28,8 @@ from model_utils import (
     calculate_auc,
     MetricsLogger,
     MetricsCalculator,
-    augment_3_channel
+    augment_3_channel,
+    ModelSaver
 )
 
 print("Files in the directory:", os.listdir("/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU"))
@@ -49,6 +50,9 @@ class DDPFullTrainer:
         # Initialize metrics components
         self.metrics_logger = MetricsLogger(self.args.rank, self.args.metrics_dir if self.args.rank == 0 else None)
         self.metrics_calculator = MetricsCalculator()
+        
+        # Initialize model saver
+        self.model_saver = ModelSaver(self.args.output, self.args.rank)
         
         # Initialize running accuracy metrics
         self.reset_running_metrics()
@@ -75,8 +79,9 @@ class DDPFullTrainer:
         from dinov2.layers import Mlp, PatchEmbed, SwiGLUFFNFused, MemEffAttention, NestedTensorBlock as Block
         
         # Load the pretrained model
-        checkpoint_path = "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6/output_dir/448_192_all14_17M_P32_B8/eval/training_314999/teacher_checkpoint.pth"
-        patch_size = 32
+        #checkpoint_path = "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6/output_dir/448_192_all14_17M_P32_B8/eval/training_314999/teacher_checkpoint.pth"
+        checkpoint_path = "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6/output_dir/448_192_all23M_p16_win1150_B8_noif/eval/training_1004999/teacher_checkpoint.pth"
+        patch_size = 16   #16, 32
         
         # Load the base model first on CPU
         model_ct = DinoVisionTransformer(
@@ -434,11 +439,6 @@ class DDPFullTrainer:
                             gc.collect()
                             torch.cuda.empty_cache()
                             
-                            # Log memory before validation
-                            #mem_allocated = torch.cuda.memory_allocated(self.device) / (1024 ** 2)
-                            #mem_reserved = torch.cuda.memory_reserved(self.device) / (1024 ** 2)
-                            #print(f"Memory before validation: {mem_allocated:.2f}MB allocated, {mem_reserved:.2f}MB reserved")
-                            
                             # Set a time limit for validation
                             try:
                                 self._run_validation(val_loader)
@@ -460,6 +460,25 @@ class DDPFullTrainer:
                         
                         # Continue with next batch
                         continue
+                
+                # Save checkpoint at specific epochs (5, 10, 15, etc.)
+                if self.args.rank == 0 and (epoch + 1) % 5 == 0:
+                    # Create additional metadata to save
+                    checkpoint_metadata = {
+                        'label_cols': self.label_cols,
+                        'model_config': {
+                            'num_attn_heads': self.args.num_attn_heads,
+                            'num_layers': self.args.num_layers,
+                            'dropout_rate': self.args.dropout
+                        }
+                    }
+                    self.model_saver.save_checkpoint(
+                        model=self.model,
+                        epoch=epoch+1,
+                        global_step=self.global_step,
+                        metadata=checkpoint_metadata,
+                        is_final=False
+                    )
                     
             except Exception as e:
                 print(f"Error in epoch {epoch+1}: {e}")
@@ -468,6 +487,28 @@ class DDPFullTrainer:
                 
                 # Try to continue with next epoch
                 continue
+                
+        # Save final model
+        if self.args.rank == 0:
+            checkpoint_metadata = {
+                'label_cols': self.label_cols,
+                'model_config': {
+                    'num_attn_heads': self.args.num_attn_heads,
+                    'num_layers': self.args.num_layers,
+                    'dropout_rate': self.args.dropout
+                },
+                'final_metrics': {
+                    'total_steps': self.global_step,
+                    'epochs_completed': epochs
+                }
+            }
+            self.model_saver.save_checkpoint(
+                model=self.model,
+                epoch=epochs,
+                global_step=self.global_step,
+                metadata=checkpoint_metadata,
+                is_final=True
+            )
 
     def _handle_unfreezing(self, epoch, unfreeze_strategy):
         """Handle unfreezing of model parameters based on strategy and epoch"""
@@ -828,17 +869,28 @@ def main(args):
     
     # Save model checkpoint (only rank 0)
     if global_rank == 0:
-        checkpoint_dir = os.path.join(args.output, 'checkpoints')
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        
-        # Save the model state dict - note we need to extract the module to save
-        torch.save(
-            model.module.state_dict(), 
-            os.path.join(checkpoint_dir, f'model_final.pt')
+        # Create checkpoint metadata
+        checkpoint_metadata = {
+            'label_cols': label_cols,
+            'model_config': {
+                'num_attn_heads': args.num_attn_heads,
+                'num_layers': args.num_layers,
+                'dropout_rate': args.dropout
+            },
+            'final_metrics': {
+                'total_steps': trainer.global_step,
+                'epochs_completed': args.epochs
+            }
+        }
+        # Use the model_saver instead of _save_checkpoint
+        trainer.model_saver.save_checkpoint(
+            model=trainer.model,
+            epoch=args.epochs,
+            global_step=trainer.global_step,
+            metadata=checkpoint_metadata,
+            is_final=True
         )
         
-        logging.info(f"Training completed. Model saved to {checkpoint_dir}")
-    
     # Clean shutdown of distributed processes
     dist.barrier()
     dist.destroy_process_group()
@@ -928,7 +980,7 @@ if __name__ == "__main__":
                         help="Dropout rate in the transformer aggregator")
     parser.add_argument("--unfreeze-strategy", type=str, default="all", choices=["gradual", "none", "all"], 
                         help="Strategy for unfreezing the base model")
-    parser.add_argument("--output", type=str, default="./output_ddp_full", 
+    parser.add_argument("--output", type=str, default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu", 
                         help="Output directory for logs and checkpoints")
     parser.add_argument("--print-every", type=int, default=100, 
                         help="Print training stats every N steps")
