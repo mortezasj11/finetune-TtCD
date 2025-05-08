@@ -35,12 +35,18 @@ trainer.fit(...)  # Runs the training loop
 class DDPFullTrainer:
     def __init__(self, model, optimizer, criterion, device, ...):
         # Initializes trainer with model, optimizer, etc.
+        # Setup metrics tracking, including running accuracy metrics
         
-    def _train_step(self, chunks, labels, mask):
+    def reset_running_metrics(self):
+        # Reset running accuracy counters for a new epoch
+        
+    def _train_step(self, chunks, labels, mask, spacing):
         # Process one batch: forward pass, loss calculation, backprop
+        # Track running accuracy metrics for each task
         
     def evaluate(self, val_loader):
         # Run evaluation on validation set
+        # Calculate accurate metrics with proper sigmoid thresholding
         
     def _run_validation(self, val_loader):
         # Wrapper for evaluation with timing and logging
@@ -50,6 +56,7 @@ class DDPFullTrainer:
         
     def fit(self, train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
         # Main training loop across epochs
+        # Reset running metrics at the start of each epoch
 ```
 
 ## Dataset and Model Classes
@@ -63,16 +70,19 @@ class NLSTDataset(Dataset):
         # Return number of samples
         
     def __getitem__(self, idx):
-        # Process and return one sample: (chunks, labels, mask)
+        # Process and return one sample: (chunks, labels, mask, spacing)
+        # spacing contains voxel dimensions (dx, dy, dz)
 ```
 
 ```python
 class CombinedModel(nn.Module):
     def __init__(self, base_model, chunk_feat_dim, hidden_dim, num_tasks, ...):
         # Initialize with ViT backbone and transformer aggregator
+        # Extended dimension to incorporate spacing information
         
-    def forward(self, x):
+    def forward(self, x, spacing=[1., 1., 1.]):
         # Process input through backbone and aggregator
+        # Incorporate spacing information into feature vectors
         
     def freeze_base_model(self):
         # Disable gradient updates for backbone
@@ -82,7 +92,7 @@ class CombinedModel(nn.Module):
         
     def unfreeze_last_n_blocks(self, n):
         # Selectively unfreeze last n blocks of backbone
-
+```
 
 # DDP Training Flow with Tensor Shapes
 
@@ -125,28 +135,36 @@ criterion = create_loss_function()                # BCEWithLogitsLoss with class
 ```python
 # Training function
 def train(model, dataloader, optimizer, criterion, epoch, global_step, accum_steps=4):
-    # Reset metrics
+    # Reset metrics and running accuracy counters
     metrics_calculator.reset()
+    reset_running_metrics()
     
     # Set model to training mode
     model.train()
     
     # For each batch in the dataloader
-    for batch_idx, (chunks, labels, mask) in enumerate(dataloader):
+    for batch_idx, (chunks, labels, mask, spacing) in enumerate(dataloader):
         # Process batch - shape: [B, C, H, W] where:
         # B = batch size (often 1 for medical volumes)
         # C = number of slices in volume (variable, often 10-50)
         # H, W = height, width of CT slice (448x448)
+        # spacing = physical voxel dimensions (dx, dy, dz) in mm
         chunks = chunks.to(local_device)       # Shape: [1, C, 3, 448, 448]
-        target = torch.tensor(labels, device=local_device)  # Shape: [num_tasks] (e.g., [3] for 3 time points)
+        target = torch.tensor(labels, device=local_device)  # Shape: [num_tasks] (e.g., [6] for 6 time points)
         mask_tensor = torch.tensor(mask, device=local_device)  # Shape: [num_tasks] (boolean mask)
+        spacing_tensor = torch.tensor(spacing, device=local_device)  # Shape: [3] (physical dimensions)
         
         # For large volumes, sample a subset of slices to fit in memory
         if chunks.size(1) > max_chunks:        # If too many slices
-            chunks = chunks[:, start:end]      # Shape: [1, max_chunks, 3, 448, 448]
+            # Center-based selection strategy
+            mid_idx = chunks.size(1) // 2
+            start_idx = max(0, mid_idx - max_chunks // 2)
+            end_idx = min(chunks.size(1), start_idx + max_chunks)
+            chunks = chunks[:, start_idx:end_idx]  # Shape: [1, max_chunks, 3, 448, 448]
         
         # Forward pass - different data on each GPU but same model architecture
-        outputs = model(chunks)                # Shape: [1, num_tasks]
+        # spacing is incorporated into the feature vector
+        outputs = model(chunks, spacing)        # Shape: [1, num_tasks]
         
         # Calculate loss
         loss = 0.0
@@ -155,29 +173,48 @@ def train(model, dataloader, optimizer, criterion, epoch, global_step, accum_ste
                 task_loss = criterion(outputs[0, i:i+1], target[i:i+1])
                 loss += task_loss
         
-        # Normalize loss by number of active tasks and accumulation steps
+        # Normalize loss by number of active tasks
         active_tasks = mask_tensor.sum().item()
         if active_tasks > 0:
             loss = loss / active_tasks
-        
-        # Gradient accumulation for larger effective batch size
-        loss = loss / accum_steps              # Scale loss by accumulation steps
         
         # Backward pass - gradients calculated locally then automatically synchronized
         loss.backward()                        # Gradients shape matches parameter shapes
         
         # Update metrics
-        predictions = (torch.sigmoid(outputs) > 0.5).float()  # Shape: [1, num_tasks]
-        metrics_calculator.update_metrics(predictions[0], target, mask_tensor, loss.item() * accum_steps)  # Store unscaled loss
+        with torch.no_grad():
+            for j in range(outputs.size(1)):
+                if mask_tensor[j]:
+                    # Calculate whether prediction was correct
+                    probs = torch.sigmoid(outputs[0, j])
+                    pred = (probs > 0.5).float()
+                    is_correct = (pred == target[j]).float().item()
+                    
+                    # Update running accuracy metrics
+                    if is_correct:
+                        correct_predictions[f'task{j}'] += 1
+                    total_predictions[f'task{j}'] += 1
         
-        # Step optimizer after accumulation steps
-        if (global_step + 1) % accum_steps == 0:
-            optimizer.step()                   # Updates all ~100M parameters
-            optimizer.zero_grad()
+        # Step optimizer
+        optimizer.step()
+        optimizer.zero_grad()
+        scheduler.step()  # Update learning rate AFTER optimizer step
         
         # Log metrics periodically
         if rank == 0 and (global_step + 1) % print_every == 0:
-            metrics = metrics_calculator.get_metrics()
+            # Calculate running accuracies for each task
+            running_accuracies = {}
+            for j in range(num_tasks):
+                if total_predictions[f'task{j}'] > 0:
+                    acc = correct_predictions[f'task{j}'] / total_predictions[f'task{j}']
+                    running_accuracies[f'acc_task{j}'] = acc
+            
+            # Log metrics
+            metrics = {
+                'loss': loss.item(),
+                'lr': scheduler.get_last_lr()[1],  # Higher LR for aggregator
+                **running_accuracies
+            }
             log_metrics(metrics, step=global_step, epoch=epoch)
         
         global_step += 1
@@ -195,45 +232,74 @@ def evaluate(model, val_loader, criterion):
     
     # Initialize tracking variables
     samples = 0
-    print(f"Starting evaluation on validation set...")
+    total_loss = 0.0
+    all_preds = []
+    all_targets = []
+    all_masks = []
     
     # Disable gradient calculation during evaluation
     with torch.no_grad():
-        for i, (chunks, labels, mask) in enumerate(val_loader):
+        for i, (chunks, labels, mask, spacing) in enumerate(val_loader):
             # Process batch
-            try:
-                # Move data to device and squeeze batch dimension
-                chunks = chunks.squeeze(1).to(device)
-                
-                # Limit chunks if needed to prevent OOM errors
-                max_chunks = 28
-                if chunks.size(0) > max_chunks:
-                    chunks = chunks[:max_chunks]
-                
-                # Forward pass
-                _ = model(chunks)
-                samples += 1
-                
-                # Print progress
-                if i % 10 == 0:
-                    print(f"Processed {i+1} validation samples")
-            except Exception as e:
-                print(f"Error in validation sample {i}: {str(e)}")
-                continue
+            chunks = chunks.squeeze(1).to(device)
+            
+            # Apply max_chunks constraint
+            if chunks.size(0) > args.max_chunks:
+                mid_idx = chunks.size(0) // 2
+                start_idx = max(0, mid_idx - args.max_chunks // 2)
+                end_idx = min(chunks.size(0), start_idx + args.max_chunks)
+                chunks = chunks[start_idx:end_idx]
+            
+            # Forward pass
+            logits = model(chunks, spacing)
+            
+            # Calculate loss
+            target = torch.tensor(labels, dtype=torch.float32, device=device)
+            mask_tensor = torch.tensor(mask, dtype=torch.bool, device=device)
+            
+            loss = 0.0
+            for j in range(logits.size(1)):
+                if mask_tensor[j]:
+                    task_loss = criterion(logits[0, j:j+1], target[j:j+1])
+                    loss += task_loss
+            
+            # Normalize loss
+            active_tasks = mask_tensor.sum().item()
+            if active_tasks > 0:
+                loss = loss / active_tasks
+                total_loss += loss.item()
+            
+            # Store predictions and targets
+            all_preds.append(logits.cpu().numpy())
+            all_targets.append(labels)
+            all_masks.append(mask)
+            
+            samples += 1
     
-    # Return basic metrics
-    elapsed = time.time() - start_time
-    print(f"Evaluated {samples} samples in {elapsed:.2f}s")
+    # Calculate metrics
+    avg_loss = total_loss / max(1, samples)
+    metrics = {'samples_evaluated': samples, 'avg_loss': avg_loss}
     
-    # For now, using placeholder values for metrics
-    # This can be extended to calculate actual metrics if needed
-    metrics = {
-        'samples_evaluated': samples,
-        'eval_time_seconds': elapsed,
-        'acc1': 0.0,  # Placeholder values 
-        'acc3': 0.0,
-        'acc6': 0.0
-    }
+    # Combine predictions and calculate metrics
+    preds = np.vstack(all_preds)
+    targets = np.vstack(all_targets)
+    masks = np.vstack(all_masks)
+    
+    for i in range(preds.shape[1]):
+        valid_idx = masks[:, i].astype(bool)
+        if np.sum(valid_idx) > 0:
+            task_preds = preds[valid_idx, i]
+            task_targets = targets[valid_idx, i]
+            
+            # Calculate AUC using raw logits
+            auc = roc_auc_score(task_targets, task_preds)
+            metrics[f'auc_task{i}'] = auc
+            
+            # Calculate accuracy with proper sigmoid threshold
+            pred_probs = 1 / (1 + np.exp(-task_preds))  # sigmoid
+            pred_labels = (pred_probs > 0.5).astype(int)
+            acc = np.mean(pred_labels == task_targets)
+            metrics[f'acc_task{i}'] = acc
     
     return metrics
 ```
@@ -249,6 +315,9 @@ def fit(train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
         # Set epoch for sampler to ensure different data shuffling per epoch
         if train_sampler:
             train_sampler.set_epoch(epoch)
+        
+        # Reset running metrics for the new epoch
+        reset_running_metrics()
         
         # Handle unfreezing strategy based on epoch
         if unfreeze_strategy == 'gradual':
@@ -269,11 +338,6 @@ def fit(train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
             # Free up memory before validation
             gc.collect()
             torch.cuda.empty_cache()
-            
-            # Log memory usage before validation
-            mem_allocated = torch.cuda.memory_allocated(device) / (1024 ** 2)
-            mem_reserved = torch.cuda.memory_reserved(device) / (1024 ** 2)
-            print(f"Memory before validation: {mem_allocated:.2f}MB allocated, {mem_reserved:.2f}MB reserved")
             
             # Run validation
             val_metrics = evaluate(model, val_loader, criterion)
@@ -303,13 +367,13 @@ destroy_process_group()
 
 2. **Slice Limitation**:
    - Large medical volumes with many slices are subsampled if they exceed memory limits
-   - Typically limits to first 28 slices if volume is too large
+   - Center-based chunk selection using configurable `max_chunks` parameter
    - Prevents OOM errors while retaining relevant information
 
 3. **Validation Strategy**:
    - Only performed on rank 0 to avoid redundant computation
    - Limited to 100 samples from validation set for efficiency
-   - Simple forward pass evaluation to check model functionality
+   - Proper metrics calculation using sigmoid for proper threshold comparison
    - Memory tracking before and after validation to monitor usage
 
 4. **Model Parameter Groups**:
@@ -318,4 +382,15 @@ destroy_process_group()
    - Aggregator uses larger learning rate (3e-5)
    - Helps fine-tune pretrained features while training new components
 
-This approach maximizes GPU utilization while ensuring stable training across different device configurations.
+5. **Spacing Information Integration**:
+   - Physical voxel dimensions (dx, dy, dz) are now incorporated into the model features
+   - Feature vectors are extended from 768 to 771 dimensions to include spacing
+   - Allows the model to account for different scanning resolutions
+
+6. **Accurate Metrics Tracking**:
+   - Running accuracy metrics maintained throughout training
+   - Proper sigmoid transformation and thresholding for binary classification
+   - Separate training and validation metrics with AUC calculation
+   - Metrics logged to disk for later analysis
+
+This approach maximizes GPU utilization while ensuring stable training across different device configurations and scanning protocols.

@@ -27,7 +27,8 @@ from model_utils import (
     prepare_balanced_validation,
     calculate_auc,
     MetricsLogger,
-    MetricsCalculator
+    MetricsCalculator,
+    augment_3_channel
 )
 
 print("Files in the directory:", os.listdir("/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU"))
@@ -580,7 +581,8 @@ def main(args):
     train_ds = NLSTDataset(
         df=pd.read_csv(csv_path).query("split == 'train'"), 
         processor=processor,
-        label_cols=label_cols
+        label_cols=label_cols,
+        augment=augment_3_channel
     )
     
     # Print basic dataset statistics (only on rank 0)

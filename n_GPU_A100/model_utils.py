@@ -13,7 +13,8 @@ from torchmetrics.functional import auroc
 from sklearn.metrics import roc_auc_score
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional, Callable
+import torchvision.transforms as T
 
 # Import DinoVisionTransformer class from dinov2 package for reusability
 import sys
@@ -368,15 +369,26 @@ class VolumeProcessor:
         chunks = self._get_chunks(volume)
         return chunks
 
+
+augment_3_channel = T.Compose([
+    T.RandomHorizontalFlip(),
+    T.RandomVerticalFlip(),
+    T.RandomRotation(10),           # ±10°
+    T.RandomAffine(degrees=0, translate=(0.05, 0.05), scale=(0.9, 1.1)),
+    T.GaussianBlur(kernel_size=5, sigma=(0.1, 1.5)),
+])
+
 class NLSTDataset(Dataset):
     def __init__(self,
                  df: pd.DataFrame,
                  processor: VolumeProcessor,
-                 label_cols: List[str]):
+                 label_cols: List[str],
+                 augment: Optional[Callable[[torch.Tensor], torch.Tensor]] = None):
         df = df[df.file_path.notna()].reset_index(drop=True)
         self.df = df
         self.proc = processor
         self.labels = label_cols
+        self.augment = augment
 
     def __len__(self) -> int:
         return len(self.df)
@@ -405,6 +417,8 @@ class NLSTDataset(Dataset):
             t = (t - 0.5) / 0.5  # Shape: [chunk_depth, 448, 448]
             windows.append(t)  # Add to list
 
+        if self.augment is not None:
+            windows = [self.augment(c) for c in windows]
         chunks = torch.stack(windows, dim=0)  # Shape: [num_chunks, chunk_depth, 448, 448]
         labels = row[self.labels].to_numpy(dtype=np.float32)  # Shape: [num_labels] (e.g., [3] for 3 time points)
         mask = (labels != -1)  # Shape: [num_labels] boolean mask
