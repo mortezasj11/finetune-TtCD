@@ -1,11 +1,15 @@
-1. Add the spacing!
-    - remember how CombinedModel works?
-    - why             with torch.no_grad():  # Frozen backbone by default
+1. Diff lr for the model and mlp    tik
+2. Add the spacing!                 tik
+    - remember how CombinedModel works?    tik 
+    - why             with torch.no_grad():  # Frozen backbone by default     #removed tik
                 chunk_feat = self.base(x[i].unsqueeze(0))
-2. Giving more chance for positive to be selected! in data loader.
-3. Data augmentation.
-4. Attention loss.
-5. Diff lr for the model and mlp
+3. Giving more chance for positive to be selected! in data loader.
+4. Data augmentation.
+5. Attention loss.
+6. Saving the model after end.
+7. Evaluate on test at the ened.
+8. Sums all the GPU gradients ... 
+
 # Remove 100 in validation now that it works. 
 
 
@@ -21,6 +25,4 @@
 
 
 
-# Main Hyperparams for training:
-    epochs
-    accum-steps
+# Main Hyperparams for t

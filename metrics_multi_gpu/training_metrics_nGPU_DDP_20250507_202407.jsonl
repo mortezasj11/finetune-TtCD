@@ -1,0 +1,6 @@
+{"iteration": 1100, "epoch": 0, "loss": 0.022261017933487892, "lr": 9.99995703769324e-05, "type": "training", "acc_task0": 1.0, "acc_task1": 1.0, "acc_task2": 1.0, "acc_task3": 1.0, "acc_task4": 1.0}
+{"iteration": 2200, "epoch": 0, "loss": 0.057620685547590256, "lr": 9.993926437093411e-05, "type": "training", "acc_task0": 1.0, "acc_task1": 1.0, "acc_task2": 1.0, "acc_task3": 1.0, "acc_task4": 1.0, "acc_task5": 1.0}
+{"iteration": 3300, "epoch": 0, "loss": 0.020559770986437798, "lr": 9.97771791326322e-05, "type": "training", "acc_task0": 1.0, "acc_task1": 1.0, "acc_task2": 1.0, "acc_task3": 1.0, "acc_task4": 1.0}
+{"iteration": 4400, "epoch": 0, "loss": 0.015568919479846954, "lr": 9.951364501474681e-05, "type": "training", "acc_task0": 1.0, "acc_task1": 1.0, "acc_task2": 1.0, "acc_task3": 1.0}
+{"iteration": 5500, "epoch": 0, "loss": 0.05135878920555115, "lr": 9.914919913721318e-05, "type": "training", "acc_task0": 1.0, "acc_task1": 1.0, "acc_task2": 1.0, "acc_task3": 1.0, "acc_task4": 1.0, "acc_task5": 1.0}
+{"iteration": 6600, "epoch": 0, "loss": 0.05757749453186989, "lr": 9.868458429245492e-05, "type": "training", "acc_task0": 1.0, "acc_task1": 1.0, "acc_task2": 1.0, "acc_task3": 1.0}

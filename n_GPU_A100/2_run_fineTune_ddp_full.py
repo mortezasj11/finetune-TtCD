@@ -49,6 +49,9 @@ class DDPFullTrainer:
         self.metrics_logger = MetricsLogger(self.args.rank, self.args.metrics_dir if self.args.rank == 0 else None)
         self.metrics_calculator = MetricsCalculator()
         
+        # Initialize running accuracy metrics
+        self.reset_running_metrics()
+        
         # Print configuration
         if self.args.rank == 0:
             print("\nTraining Configuration:")
@@ -219,20 +222,35 @@ class DDPFullTrainer:
         # Update learning rate AFTER optimizer step
         self.scheduler.step()
         
-        # Calculate accuracy for each task
+        # Update running metrics for accuracy tracking
         with torch.no_grad():
-            accuracies = {}
             for j in range(logits.size(1)):
                 if mask_tensor[j]:
-                    pred = (logits[0, j] > 0).float()
-                    acc = (pred == target[j]).float().item()
-                    accuracies[f'acc_task{j}'] = acc
+                    # Convert logits to probability with sigmoid, then threshold
+                    probs = torch.sigmoid(logits[0, j])
+                    pred = (probs > 0.5).float()
+                    
+                    # Update running metrics
+                    task_key = f'task{j}'
+                    is_correct = (pred == target[j]).float().item()
+                    if is_correct == 1.0:
+                        self.correct_preds[task_key] += 1
+                    self.total_preds[task_key] += 1
+        
+        # Calculate running accuracies
+        running_accuracies = {}
+        for j in range(len(self.label_cols)):
+            task_key = f'task{j}'
+            # Only calculate if we have data for this task
+            if self.total_preds[task_key] > 0:
+                running_acc = self.correct_preds[task_key] / self.total_preds[task_key]
+                running_accuracies[f'acc_task{j}_running'] = running_acc
         
         return {
             'loss': loss.item(),
             'lr': self.scheduler.get_last_lr()[1],
             'spacing': spacing,
-            **accuracies
+            **running_accuracies
         }
 
     def evaluate(self, val_loader):
@@ -303,11 +321,13 @@ class DDPFullTrainer:
                 task_preds = preds[valid_idx, i]
                 task_targets = targets[valid_idx, i]
                 try:
+                    # Calculate AUC using raw logits (this is correct for ROC AUC)
                     auc = roc_auc_score(task_targets, task_preds)
                     metrics[f'auc_task{i}'] = auc
                     
-                    # Calculate accuracy
-                    pred_labels = (task_preds > 0).astype(int)
+                    # Calculate accuracy with sigmoid transformation and proper thresholding
+                    pred_probs = 1 / (1 + np.exp(-task_preds))  # sigmoid in numpy
+                    pred_labels = (pred_probs > 0.5).astype(int)
                     acc = np.mean(pred_labels == task_targets)
                     metrics[f'acc_task{i}'] = acc
                 except:
@@ -347,6 +367,9 @@ class DDPFullTrainer:
             self.current_epoch = epoch
             self.metrics_calculator.reset()
             
+            # Reset running metrics at the start of each epoch
+            self.reset_running_metrics()
+            
             if train_sampler:
                 train_sampler.set_epoch(epoch)
             
@@ -368,15 +391,19 @@ class DDPFullTrainer:
                             print(f"Loss: {step_metrics['loss']:.4f}")
                             print(f"Learning rate: {step_metrics['lr']:.6f}")
                             
-                            # Print accuracy for each task
-                            acc_string = ""
-                            for i in range(len(self.label_cols)):
-                                if f'acc_task{i}' in step_metrics:
-                                    acc_string += f"Acc task {i}: {step_metrics[f'acc_task{i}']:.4f} | "
-                            if acc_string:
-                                print(acc_string.rstrip(" | "))
+                            # Print only running averages for all tasks
+                            acc_string = "Accuracy: "
                             
-                            # Log training metrics to file
+                            for i in range(len(self.label_cols)):
+                                # Running accuracy (simplified format)
+                                running_key = f'acc_task{i}_running'
+                                if running_key in step_metrics:
+                                    acc_string += f"Task {i}: {step_metrics[running_key]:.2f} | "
+                            
+                            # Print accuracy string
+                            print(acc_string.rstrip(" | "))
+                            
+                            # Log training metrics to file - only running metrics
                             train_metrics = {
                                 "iteration": self.global_step,
                                 "epoch": epoch,
@@ -385,10 +412,14 @@ class DDPFullTrainer:
                                 "type": "training"
                             }
                             
-                            # Add accuracies to metrics
+                            # Add only running accuracies with simplified names
                             for i in range(len(self.label_cols)):
-                                if f'acc_task{i}' in step_metrics:
-                                    train_metrics[f'acc_task{i}'] = step_metrics[f'acc_task{i}']
+                                running_key = f'acc_task{i}_running'
+                                
+                                # Add running accuracy if available (with simplified name)
+                                if running_key in step_metrics:
+                                    # Change from acc_task0_running to just acc_task0
+                                    train_metrics[f'acc_task{i}'] = step_metrics[running_key]
                             
                             # Log metrics
                             self.metrics_logger.log_metrics(train_metrics)
@@ -487,6 +518,12 @@ class DDPFullTrainer:
             # Switch back to training mode
             self.model.train()
             print(f"=== Validation complete at step {self.global_step} ===\n")
+
+    def reset_running_metrics(self):
+        """Reset running metrics for a new epoch"""
+        # Track correct predictions and total predictions for each task
+        self.correct_preds = {f'task{i}': 0 for i in range(len(self.label_cols))}
+        self.total_preds = {f'task{i}': 0 for i in range(len(self.label_cols))}
 
 
 def main(args):
