@@ -1,0 +1,94 @@
+Name:                 msalehjahromi-torchrun-ftn-q68dv
+Namespace:            yn-gpu-workload
+Priority:             1000
+Priority Class Name:  high-nonpreempting
+Service Account:      default
+Node:                 hpcgpu01/10.113.120.200
+Start Time:           Thu, 08 May 2025 22:32:06 -0500
+Labels:               batch.kubernetes.io/controller-uid=9fbec5f5-38b1-4329-9394-7f5bd4d99d5a
+                      batch.kubernetes.io/job-name=msalehjahromi-torchrun-ftn
+                      controller-uid=9fbec5f5-38b1-4329-9394-7f5bd4d99d5a
+                      job-name=msalehjahromi-torchrun-ftn
+                      k8s-user=msalehjahromi
+                      runai/queue=msalehjahromi-yn-gpu-workload-queue
+Annotations:          cni.projectcalico.org/containerID: 3585887ca3a49abff5176b1c0e4109502838a3225d1bec188457bcfcffaf57cb
+                      cni.projectcalico.org/podIP: 10.0.111.4/32
+                      cni.projectcalico.org/podIPs: 10.0.111.4/32
+                      pod-group-name: pg-msalehjahromi-torchrun-ftn-q68dv-9fbec5f5-38b1-4329-9394-7f5bd4d99d5a
+                      received-resource-type: Regular
+                      runai-job-id: 9fbec5f5-38b1-4329-9394-7f5bd4d99d5a
+Status:               Running
+IP:                   10.0.111.4
+IPs:
+  IP:           10.0.111.4
+Controlled By:  Job/msalehjahromi-torchrun-ftn
+Containers:
+  main:
+    Container ID:  containerd://fc0c4675c346dd478adfb6f5351f9a4305153730ad36c21fa097590e47209464
+    Image:         hpcharbor.mdanderson.edu/nnunetv2/nnunetv2@sha256:4ab016ba4b356842be74fbf58159480598bfc015c8454339022aa0fcbfdc196d
+    Image ID:      hpcharbor.mdanderson.edu/nnunetv2/nnunetv2@sha256:4ab016ba4b356842be74fbf58159480598bfc015c8454339022aa0fcbfdc196d
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      torchrun
+    Args:
+      --nproc_per_node=4
+      --nnodes=1
+      --node_rank=0
+      --master_addr=$(MASTER_ADDR)
+      --master_port=$(MASTER_PORT)
+      /rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_ddp_launcher.py
+    State:          Running
+      Started:      Thu, 08 May 2025 22:32:11 -0500
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:             96
+      nvidia.com/gpu:  4
+    Requests:
+      cpu:             96
+      nvidia.com/gpu:  4
+    Environment:
+      HOME:                /rsrch1/ip/msalehjahromi
+      MASTER_ADDR:          (v1:status.podIP)
+      MASTER_PORT:         29500
+      NCCL_DEBUG:          INFO
+      NCCL_SOCKET_IFNAME:  eth0
+      NCCL_IB_DISABLE:     1
+    Mounts:
+      /dev/shm from shm (rw)
+      /rsrch1/ip/msalehjahromi/ from home (rw)
+      /rsrch7/home/ip_rsrch/wulab from ifp (rw)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-zzqmz (ro)
+Conditions:
+  Type              Status
+  PodBound          True 
+  Initialized       True 
+  Ready             True 
+  ContainersReady   True 
+  PodScheduled      True 
+Volumes:
+  shm:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  21474836480
+  ifp:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  msalehjahromi-gpu-rsrch7-home-ip-rsrch
+    ReadOnly:   false
+  home:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  msalehjahromi-gpu-home
+    ReadOnly:   false
+  kube-api-access-zzqmz:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              nvidia.com/cuda.runtime.major=12
+                             nvidia.com/gpu.machine=DGXA100-920-23687-2530-000
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:                      <none>

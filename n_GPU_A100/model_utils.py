@@ -266,7 +266,7 @@ class CombinedModel(nn.Module):
         lse_tau: float = 1.0,
     ):
         super().__init__()
-        self.base = base_model           # frozen or fine-tuned elsewhere
+        self.base = base_model      # now parameters of the base model are referenced
         self.lse_tau = lse_tau
         self.chunk_feat_dim = chunk_feat_dim + 3   # 768 + 3 = 771
 

@@ -9,6 +9,7 @@
 - [x] **Data Augmentation**
   - Implemented random flips, rotations, scaling, and Gaussian 
 - [x] **Load the Latest Trained Dinov2**
+  - Tested!
 
 - [ ] **Class Balancing**
   - Implemented weighted loss for handling imbalanced classes
@@ -17,8 +18,9 @@
   - Sum gradients across all GPUs for better training stability
 - [ ] **Attention Loss**
   - Implement additional guidance for attention mechanism
-- [ ] **Model Preservation**
+- [x] **Model Preservation**
   - Save model checkpoints at regular intervals and after training
+  - not tested!
 - [ ] **Final Evaluation**
   - Evaluate on test set after training completes
   - Remove the 100-sample limitation for validation
@@ -36,11 +38,11 @@
 
 
 # Train Test
-## Key Hyperparameters  (**I need to remove 88 on Validation**)
+## Key Hyperparameters  
+-  **I need to remove 88 on Validation**
 - `epochs`: 50
 - `accum-steps`: at least 1000
 - `max-chunks`: 66 
-- `batch-size`: 1
 - `lr`:  ?
 - `warmup-steps`: 5k
 - `print-every` : 1000

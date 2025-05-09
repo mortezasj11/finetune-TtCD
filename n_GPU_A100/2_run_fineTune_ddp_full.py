@@ -385,108 +385,71 @@ class DDPFullTrainer:
             # Training loop
             self.model.train()
             
-            try:
-                for step, (chunks, labels, mask, spacing) in enumerate(train_loader, 1):
+            for step, (chunks, labels, mask, spacing) in enumerate(train_loader, 1):
+                # Training step (no try/except)
+                step_metrics = self._train_step(chunks, labels, mask, spacing)
+                
+                # Print training metrics every print_every steps
+                if step_metrics and self.args.rank == 0 and self.global_step % self.args.print_every == 0:
+                    print(f"\nStep {self.global_step} (Epoch {epoch+1}):")
+                    print(f"Loss: {step_metrics['loss']:.4f}")
+                    print(f"Learning rate: {step_metrics['lr']:.6f}")
+                    
+                    # Print only running averages for all tasks
+                    acc_string = "Accuracy: "
+                    
+                    for i in range(len(self.label_cols)):
+                        # Running accuracy (simplified format)
+                        running_key = f'acc_task{i}_running'
+                        if running_key in step_metrics:
+                            acc_string += f"Task {i}: {step_metrics[running_key]:.2f} | "
+                    
+                    # Print accuracy string
+                    print(acc_string.rstrip(" | "))
+                    
+                    # Log training metrics to file - only running metrics
+                    train_metrics = {
+                        "iteration": self.global_step,
+                        "epoch": epoch,
+                        "loss": step_metrics['loss'],
+                        "lr": step_metrics['lr'],
+                        "type": "training"
+                    }
+                    
+                    # Add only running accuracies with simplified names
+                    for i in range(len(self.label_cols)):
+                        running_key = f'acc_task{i}_running'
+                        
+                        # Add running accuracy if available (with simplified name)
+                        if running_key in step_metrics:
+                            # Change from acc_task0_running to just acc_task0
+                            train_metrics[f'acc_task{i}'] = step_metrics[running_key]
+                    
+                    # Log metrics
+                    self.metrics_logger.log_metrics(train_metrics)
+                
+                # Validation - only on rank 0
+                if val_loader and self.args.rank == 0 and self.global_step % self.args.val_every == 0:
+                    print(f"\nReached validation point at step {self.global_step} (in epoch {epoch+1})")
+                    
+                    # Force garbage collection before validation
+                    import gc
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    
+                    # Set a time limit for validation
                     try:
-                        # Training step
-                        step_metrics = self._train_step(chunks, labels, mask, spacing)
-                        
-                        # Print training metrics every print_every steps
-                        if step_metrics and self.args.rank == 0 and self.global_step % self.args.print_every == 0:
-                            print(f"\nStep {self.global_step} (Epoch {epoch+1}):")
-                            print(f"Loss: {step_metrics['loss']:.4f}")
-                            print(f"Learning rate: {step_metrics['lr']:.6f}")
-                            
-                            # Print only running averages for all tasks
-                            acc_string = "Accuracy: "
-                            
-                            for i in range(len(self.label_cols)):
-                                # Running accuracy (simplified format)
-                                running_key = f'acc_task{i}_running'
-                                if running_key in step_metrics:
-                                    acc_string += f"Task {i}: {step_metrics[running_key]:.2f} | "
-                            
-                            # Print accuracy string
-                            print(acc_string.rstrip(" | "))
-                            
-                            # Log training metrics to file - only running metrics
-                            train_metrics = {
-                                "iteration": self.global_step,
-                                "epoch": epoch,
-                                "loss": step_metrics['loss'],
-                                "lr": step_metrics['lr'],
-                                "type": "training"
-                            }
-                            
-                            # Add only running accuracies with simplified names
-                            for i in range(len(self.label_cols)):
-                                running_key = f'acc_task{i}_running'
-                                
-                                # Add running accuracy if available (with simplified name)
-                                if running_key in step_metrics:
-                                    # Change from acc_task0_running to just acc_task0
-                                    train_metrics[f'acc_task{i}'] = step_metrics[running_key]
-                            
-                            # Log metrics
-                            self.metrics_logger.log_metrics(train_metrics)
-                        
-                        # Validation - only on rank 0
-                        if val_loader and self.args.rank == 0 and self.global_step % self.args.val_every == 0:
-                            print(f"\nReached validation point at step {self.global_step} (in epoch {epoch+1})")
-                            
-                            # Force garbage collection before validation
-                            import gc
-                            gc.collect()
-                            torch.cuda.empty_cache()
-                            
-                            # Set a time limit for validation
-                            try:
-                                self._run_validation(val_loader)
-                            except Exception as e:
-                                print(f"Validation failed with error: {e}")
-                                import traceback
-                                traceback.print_exc()
-                                
-                            # Force garbage collection after validation
-                            gc.collect()
-                            torch.cuda.empty_cache()
-                        
-                        self.global_step += 1
-                            
+                        self._run_validation(val_loader)
                     except Exception as e:
-                        print(f"Error in training step at step {step}: {e}")
+                        print(f"Validation failed with error: {e}")
                         import traceback
                         traceback.print_exc()
-                        
-                        # Continue with next batch
-                        continue
-                
-                # Save checkpoint at specific epochs (5, 10, 15, etc.)
-                if self.args.rank == 0 and (epoch + 1) % 5 == 0:
-                    # Create additional metadata to save
-                    checkpoint_metadata = {
-                        'label_cols': self.label_cols,
-                        'model_config': {
-                            'num_attn_heads': self.args.num_attn_heads,
-                            'num_layers': self.args.num_layers,
-                            'dropout_rate': self.args.dropout
-                        }
-                    }
-                    self.model_saver.save_checkpoint(
-                        model=self.model,
-                        epoch=epoch+1,
-                        global_step=self.global_step,
-                        metadata=checkpoint_metadata,
-                        is_final=False
-                    )
                     
-            except Exception as e:
-                print(f"Error in epoch {epoch+1}: {e}")
-                import traceback
-                traceback.print_exc()
+                    # Force garbage collection after validation
+                    gc.collect()
+                    torch.cuda.empty_cache()
                 
-                # Try to continue with next epoch
-                continue
+                self.global_step += 1
                 
         # Save final model
         if self.args.rank == 0:
@@ -632,6 +595,7 @@ def main(args):
         full_df = pd.read_csv(csv_path)
         train_df = full_df[full_df['split'] == 'train']
         val_df_stats = full_df[full_df['split'] == 'val']
+        #test_df_stats = full_df[full_df['split'] == 'test']
         
         print("\n==== Dataset Statistics ====")
         print(f"Total samples: {len(full_df)}")
@@ -670,18 +634,14 @@ def main(args):
     
     # Validation dataloader - does not need to be sharded for rank 0
     if global_rank == 0:
-        # Create validation dataset
         full_df = pd.read_csv(csv_path)
         val_df = full_df[full_df['split'] == 'val'].copy()
-        
-        # Get total validation count
-        total_val_count = len(val_df)
-        
-        # Limit samples if needed (and if we have more than 100)
-        if len(val_df) > 100:
-            val_df = val_df.head(100)  # Simply take first 100 to avoid sampling complexity
-            print(f"Using first 100 samples from validation set (total: {total_val_count})")
-        
+        ########################################################################################
+        # total_val_count = len(val_df)
+        # if len(val_df) > 100:
+        #     val_df = val_df.head(100)  # Simply take first 100 to avoid sampling complexity
+        #     print(f"Using first 100 samples from validation set (total: {total_val_count})")
+        ########################################################################################
         val_ds = NLSTDataset(
             df=val_df,
             processor=processor,
@@ -818,6 +778,7 @@ def main(args):
     agg_params = []
 
     # We need to name the parameters more specifically - Note the module. prefix
+    # Why 'module.base'?
     for name, param in model.named_parameters():
         if param.requires_grad:
             if 'module.base' in name:
@@ -989,7 +950,7 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-dir", type=str, 
                        default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
                        help="Directory to save training metrics")
-    parser.add_argument("--max-chunks", type=int, default=66, help="Maximum number of chunks to process per sample")
+    parser.add_argument("--max-chunks", type=int, default=18, help="Maximum number of chunks to process per sample")
     
     args = parser.parse_args()
     

@@ -233,16 +233,16 @@ if __name__ == "__main__":
     # Hardware parameters
     parser.add_argument("--num-gpus", type=int, default=4,
                         help="Number of GPUs to use for training")
-    parser.add_argument("--num-workers", type=int, default=5, 
+    parser.add_argument("--num-workers", type=int, default=10, 
                         help="Number of workers for data loading")
     
     # Training parameters
-    parser.add_argument("--accum-steps", type=int, default=20, help="Number of steps to accumulate gradients over")
-    parser.add_argument("--epochs", type=int, default=10, help="Number of epochs to train for")
+    parser.add_argument("--accum-steps", type=int, default=100, help="Number of steps to accumulate gradients over")
+    parser.add_argument("--epochs", type=int, default=50, help="Number of epochs to train for")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--weight-decay", type=float, default=1e-4, help="Weight decay")
     parser.add_argument("--optimizer", type=str, default="adamw", choices=["adam", "adamw", "sgd"], help="Optimizer to use")
-    parser.add_argument("--unfreeze-strategy", type=str, default="gradual", choices=["gradual", "none", "all"], help="Strategy for unfreezing the base model")
+    parser.add_argument("--unfreeze-strategy", type=str, default="all", choices=["gradual", "none", "all"], help="Strategy for unfreezing the base model")
     
     # Model parameters
     parser.add_argument("--num-attn-heads", type=int, default=3, help="Number of attention heads in the transformer aggregator")
@@ -250,9 +250,9 @@ if __name__ == "__main__":
     parser.add_argument("--dropout", type=float, default=0.3, help="Dropout rate in the transformer aggregator")
     
     # Output parameters
-    parser.add_argument("--output", type=str, default="./output_ddp", help="Output directory for logs and checkpoints")
-    parser.add_argument("--print-every", type=int, default=100, help="Print training stats every N steps")
-    parser.add_argument("--val-every", type=int, default=500, help="Run validation every N steps")
+    parser.add_argument("--output", type=str, default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu", help="Output directory for logs and checkpoints")
+    parser.add_argument("--print-every", type=int, default=50, help="Print training stats every N steps")
+    parser.add_argument("--val-every", type=int, default=400, help="Run validation every N steps")
     
     # Setup parameters
     parser.add_argument("--install-packages", action="store_true",help="Whether to install required packages")

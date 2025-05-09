@@ -1,3 +1,10 @@
+job-runner.sh 2_multiple_GPU.yaml.yaml
+kubectl delete job -n yn-gpu-workload msalehjahromi-torchrun-ftn
+kubectl apply -f x.yaml
+
+
+
+
 # DDP Training Flow Structure
 
 ## Core Components
