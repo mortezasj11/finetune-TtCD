@@ -1,9 +1,0 @@
-2025-05-08_162838: Deploying the 2_multiple_GPU.yaml job file.
-job.batch/msalehjahromi-torchrun-ftn created
-2025-05-08_162839: Waiting for the pod of job/msalehjahromi-torchrun-ftn to be ready before starting the log tailing process.
-pod/msalehjahromi-torchrun-ftn-cgszp condition met
-2025-05-08_162848: Starting to tail the container log.
-2025-05-08_162848: Creating the log-runner.sh script.
-2025-05-08_162848: Executing the log-runner.sh script.
-2025-05-08_162848: The log-runner.sh script for job/msalehjahromi-torchrun-ftn is now running.
-2025-05-08_163326: The job/msalehjahromi-torchrun-ftn is no longer running. Log-runner.sh script is stopping.

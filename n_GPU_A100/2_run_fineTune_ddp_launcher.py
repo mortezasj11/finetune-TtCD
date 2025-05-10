@@ -231,13 +231,14 @@ if __name__ == "__main__":
                         help="Whether to use class weights in the loss function")
     
     # Hardware parameters
-    parser.add_argument("--num-gpus", type=int, default=4,
+    parser.add_argument("--num-gpus", type=int, default=8,
                         help="Number of GPUs to use for training")
     parser.add_argument("--num-workers", type=int, default=10, 
                         help="Number of workers for data loading")
     
     # Training parameters
-    parser.add_argument("--accum-steps", type=int, default=100, help="Number of steps to accumulate gradients over")
+    parser.add_argument("--accum-steps", type=int, default=20, help="Number of steps to accumulate gradients over")
+    
     parser.add_argument("--epochs", type=int, default=50, help="Number of epochs to train for")
     parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--weight-decay", type=float, default=1e-4, help="Weight decay")
@@ -252,7 +253,7 @@ if __name__ == "__main__":
     # Output parameters
     parser.add_argument("--output", type=str, default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu", help="Output directory for logs and checkpoints")
     parser.add_argument("--print-every", type=int, default=50, help="Print training stats every N steps")
-    parser.add_argument("--val-every", type=int, default=400, help="Run validation every N steps")
+    parser.add_argument("--val-every", type=int, default=100, help="Run validation every N steps")
     
     # Setup parameters
     parser.add_argument("--install-packages", action="store_true",help="Whether to install required packages")

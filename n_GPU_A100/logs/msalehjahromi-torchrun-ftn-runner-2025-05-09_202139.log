@@ -1,0 +1,123 @@
+2025-05-09_202139: Deploying the 2_multiple_GPU.yaml job file.
+job.batch/msalehjahromi-torchrun-ftn created
+2025-05-09_202140: Waiting for the pod of job/msalehjahromi-torchrun-ftn to be ready before starting the log tailing process.
+2025-05-09_202211: Starting to tail the container log.
+2025-05-09_202211: Creating the log-runner.sh script.
+2025-05-09_202211: Executing the log-runner.sh script.
+2025-05-09_202211: The log-runner.sh script for job/msalehjahromi-torchrun-ftn is now running.
+2025-05-09_202242: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202242: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202243: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202315: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202315: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202315: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202347: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202347: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202348: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202419: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202419: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202420: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202452: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202452: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202452: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202524: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202524: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202525: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202557: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202557: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202557: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202629: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202629: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202630: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202702: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202702: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202702: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202734: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202734: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202734: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202806: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202806: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202807: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202839: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202839: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202839: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202911: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202911: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202912: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_202944: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_202944: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_202944: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203016: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203016: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203016: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203048: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203048: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203049: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203121: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203121: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203121: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203153: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203153: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203153: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203225: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203225: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203226: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203258: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203258: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203258: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203330: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203330: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203331: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203403: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203403: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203403: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203435: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203435: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203436: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203508: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203508: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203508: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203540: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203540: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203541: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203613: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203613: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203613: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203645: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203645: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203645: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203717: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203717: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203718: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203750: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203750: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203750: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203822: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203822: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203822: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203855: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203855: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203855: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203927: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203927: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_203928: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_203959: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_203959: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_204000: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_204032: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_204032: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_204032: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_204104: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_204104: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_204105: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_204137: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_204137: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_204137: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_204209: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_204209: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_204210: Job/msalehjahromi-torchrun-ftn appears to still be active.  Starting the logger again.
+2025-05-09_204722: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_204722: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_204753: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn appears to no longer be running.
+2025-05-09_204753: Checking the current state of job/msalehjahromi-torchrun-ftn.
+2025-05-09_204824: The job/msalehjahromi-torchrun-ftn is no longer running. Log-runner.sh script is stopping.

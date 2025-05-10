@@ -259,89 +259,173 @@ class DDPFullTrainer:
             **running_accuracies
         }
 
+    @torch.no_grad()
     def evaluate(self, val_loader):
-        """Evaluate model on validation set"""
+        """Evaluate model on validation set using distributed evaluation"""
         self.model.eval()
-        samples = 0
-        total_loss = 0.0
-        all_preds = []
-        all_targets = []
-        all_masks = []
+        local_loss_sum = 0.0
+        local_samples = 0
+        local_preds = []
+        local_targets = []
+        local_masks = []
         
-        with torch.no_grad():
-            for i, (chunks, labels, mask, spacing) in enumerate(val_loader):
-                chunks = chunks.squeeze(1).to(self.device)
-                
-                # Use max_chunks from args
-                if chunks.size(0) > self.args.max_chunks:
-                    mid_idx = chunks.size(0) // 2
-                    start_idx = max(0, mid_idx - self.args.max_chunks // 2)
-                    end_idx = min(chunks.size(0), start_idx + self.args.max_chunks)
-                    chunks = chunks[start_idx:end_idx]
-                
-                # Forward pass
-                logits = self.model(chunks, spacing)
-                
-                # Calculate loss
-                target = torch.tensor(labels, dtype=torch.float32, device=self.device)
-                mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
-                
-                loss = 0.0
-                for j in range(logits.size(1)):
-                    if mask_tensor[j]:
-                        task_loss = self.crit(logits[0, j:j+1], target[j:j+1])
-                        loss += task_loss
-                
-                # Normalize loss
-                active_tasks = mask_tensor.sum().item()
-                if active_tasks > 0:
-                    loss = loss / active_tasks
-                    total_loss += loss.item()
-                
-                # Store predictions and targets
-                all_preds.append(logits.cpu().numpy())
-                all_targets.append(labels)
-                all_masks.append(mask)
-                
-                samples += 1
+        # Process validation samples assigned to this rank
+        for i, (chunks, labels, mask, spacing) in enumerate(val_loader):
+            chunks = chunks.squeeze(1).to(self.device)
+            
+            # Apply max_chunks constraint
+            if chunks.size(0) > self.args.max_chunks:
+                mid_idx = chunks.size(0) // 2
+                start_idx = max(0, mid_idx - self.args.max_chunks // 2)
+                end_idx = min(chunks.size(0), start_idx + self.args.max_chunks)
+                chunks = chunks[start_idx:end_idx]
+            
+            # Forward pass
+            logits = self.model(chunks, spacing)
+            
+            # Calculate loss
+            target = torch.tensor(labels, dtype=torch.float32, device=self.device)
+            mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
+            
+            loss = 0.0
+            for j in range(logits.size(1)):
+                if mask_tensor[j]:
+                    task_loss = self.crit(logits[0, j:j+1], target[j:j+1])
+                    loss += task_loss
+            
+            # Normalize loss
+            active_tasks = mask_tensor.sum().item()
+            if active_tasks > 0:
+                loss = loss / active_tasks
+                local_loss_sum += loss.item()
+            
+            # Store predictions, targets, and masks
+            local_preds.append(logits.cpu())
+            local_targets.append(torch.tensor(labels, dtype=torch.float32))
+            local_masks.append(torch.tensor(mask, dtype=torch.bool))
+            
+            local_samples += 1
         
-        # Calculate metrics
-        avg_loss = total_loss / max(1, samples)
+        # Convert to tensors for gathering
+        if local_preds:
+            # Use stack for all tensors to ensure consistent [S, T] shape
+            local_preds_tensor = torch.stack(local_preds, dim=0)
+            local_targets_tensor = torch.stack(local_targets, dim=0)  
+            local_masks_tensor = torch.stack(local_masks, dim=0)
+        else:
+            # Handle edge case where a rank might not get any validation samples
+            num_tasks = len(self.label_cols) 
+            local_preds_tensor = torch.zeros((0, num_tasks), dtype=torch.float32)
+            local_targets_tensor = torch.zeros((0, num_tasks), dtype=torch.float32)
+            local_masks_tensor = torch.zeros((0, num_tasks), dtype=torch.bool)
         
-        # Calculate AUC and accuracy for each task
+        # Move tensors to device for all_gather
+        local_preds_tensor = local_preds_tensor.to(self.device)
+        local_targets_tensor = local_targets_tensor.to(self.device)
+        local_masks_tensor = local_masks_tensor.to(self.device)
+        
+        # Compute total loss across all ranks
+        total_samples = torch.tensor([local_samples], dtype=torch.float32, device=self.device)
+        total_loss_sum = torch.tensor([local_loss_sum], dtype=torch.float32, device=self.device)
+        
+        dist.all_reduce(total_samples, op=dist.ReduceOp.SUM)
+        dist.all_reduce(total_loss_sum, op=dist.ReduceOp.SUM)
+        
+        avg_loss = total_loss_sum.item() / max(1, total_samples.item())
+        total_samples = int(total_samples.item())
+        
+        # Initialize metrics
         metrics = {
-            'samples_evaluated': samples,
+            'samples_evaluated': total_samples,
             'avg_loss': avg_loss,
         }
         
-        # Combine predictions and calculate metrics
-        preds = np.vstack(all_preds)
-        targets = np.vstack(all_targets)
-        masks = np.vstack(all_masks)
+        # Get world size for gathering
+        world_size = dist.get_world_size()
         
-        for i in range(preds.shape[1]):
-            if i >= masks.shape[1]:
-                continue
-            valid_idx = masks[:, i].astype(bool)
-            if np.sum(valid_idx) > 0:
-                task_preds = preds[valid_idx, i]
-                task_targets = targets[valid_idx, i]
-                try:
-                    # Calculate AUC using raw logits (this is correct for ROC AUC)
-                    auc = roc_auc_score(task_targets, task_preds)
-                    metrics[f'auc_task{i}'] = auc
+        # Padding tensors to the same size for all_gather
+        # First find the maximum size across all ranks
+        local_size = torch.tensor([local_preds_tensor.shape[0]], dtype=torch.long, device=self.device)
+        all_sizes = [torch.ones(1, dtype=torch.long, device=self.device) for _ in range(world_size)]
+        dist.all_gather(all_sizes, local_size)
+        max_size = max([size.item() for size in all_sizes])
+        
+        # Pad local tensors to max_size
+        num_tasks = len(self.label_cols)
+        if local_preds_tensor.shape[0] < max_size:
+            padding_size = max_size - local_preds_tensor.shape[0]
+            # Pad with zeros
+            preds_padding = torch.zeros((padding_size, num_tasks), dtype=torch.float32, device=self.device)
+            targets_padding = torch.zeros((padding_size, num_tasks), dtype=torch.float32, device=self.device)
+            masks_padding = torch.zeros((padding_size, num_tasks), dtype=torch.bool, device=self.device)
+            
+            # Concatenate original tensor with padding
+            local_preds_tensor = torch.cat([local_preds_tensor, preds_padding], dim=0)
+            local_targets_tensor = torch.cat([local_targets_tensor, targets_padding], dim=0)
+            local_masks_tensor = torch.cat([local_masks_tensor, masks_padding], dim=0)
+        
+        # Use all_gather for efficient collection on GPU
+        gathered_preds = [torch.empty_like(local_preds_tensor) for _ in range(world_size)]
+        gathered_targets = [torch.empty_like(local_targets_tensor) for _ in range(world_size)]
+        gathered_masks = [torch.empty_like(local_masks_tensor) for _ in range(world_size)]
+        
+        # Gather data from all ranks
+        dist.all_gather(gathered_preds, local_preds_tensor)
+        dist.all_gather(gathered_targets, local_targets_tensor)
+        dist.all_gather(gathered_masks, local_masks_tensor)
+        
+        # Only rank 0 computes the actual metrics
+        if self.args.rank == 0:
+            # Remove padding and convert to numpy for metric calculation
+            valid_preds = []
+            valid_targets = []
+            valid_masks = []
+            
+            for i, size in enumerate([size.item() for size in all_sizes]):
+                if size > 0:
+                    valid_preds.append(gathered_preds[i][:size])
+                    valid_targets.append(gathered_targets[i][:size])
+                    valid_masks.append(gathered_masks[i][:size])
+            
+            # Combine all gathered data
+            all_preds = torch.cat(valid_preds, dim=0).cpu().numpy()
+            all_targets = torch.cat(valid_targets, dim=0).cpu().numpy()
+            all_masks = torch.cat(valid_masks, dim=0).cpu().numpy()
+            
+            # Compute metrics for each task
+            for i in range(all_preds.shape[1]):
+                valid_idx = all_masks[:, i]
+                if np.sum(valid_idx) > 0:
+                    task_preds = all_preds[valid_idx, i]
+                    task_targets = all_targets[valid_idx, i]
                     
-                    # Calculate accuracy with sigmoid transformation and proper thresholding
-                    pred_probs = 1 / (1 + np.exp(-task_preds))  # sigmoid in numpy
-                    pred_labels = (pred_probs > 0.5).astype(int)
-                    acc = np.mean(pred_labels == task_targets)
-                    metrics[f'acc_task{i}'] = acc
-                except:
-                    metrics[f'auc_task{i}'] = float('nan')
-                    metrics[f'acc_task{i}'] = float('nan')
+                    try:
+                        # Calculate AUC using raw logits
+                        auc = roc_auc_score(task_targets, task_preds)
+                        metrics[f'auc_task{i}'] = auc
+                        
+                        # Calculate accuracy with sigmoid transformation
+                        pred_probs = 1 / (1 + np.exp(-task_preds))  # sigmoid
+                        pred_labels = (pred_probs > 0.5).astype(int)
+                        acc = np.mean(pred_labels == task_targets)
+                        metrics[f'acc_task{i}'] = acc
+                    except Exception as e:
+                        print(f"Error calculating metrics for task {i}: {str(e)}")
+                        metrics[f'auc_task{i}'] = float('nan')
+                        metrics[f'acc_task{i}'] = float('nan')
         
-        print(f"Evaluated {samples} samples")
-        print(f"Average loss: {avg_loss:.4f}")
+        # More efficient metrics broadcasting
+        metrics = metrics if self.args.rank == 0 else None
+        metrics_list = [metrics]
+        dist.broadcast_object_list(metrics_list, src=0)
+        metrics = metrics_list[0]
+        
+        if self.args.rank == 0:
+            print(f"Evaluated {total_samples} samples across {world_size} processes")
+            print(f"Average loss: {avg_loss:.4f}")
+        
+        # Synchronize processes
+        dist.barrier()
         
         return metrics
     
@@ -428,28 +512,25 @@ class DDPFullTrainer:
                     # Log metrics
                     self.metrics_logger.log_metrics(train_metrics)
                 
-                # Validation - only on rank 0
-                if val_loader and self.args.rank == 0 and self.global_step % self.args.val_every == 0:
-                    print(f"\nReached validation point at step {self.global_step} (in epoch {epoch+1})")
+                self.global_step += 1
+                
+                # Validation - all ranks participate
+                if val_loader and self.global_step % self.args.val_every == 0:
+                    # Only rank 0 prints the validation message
+                    if self.args.rank == 0:
+                        print(f"\nReached validation point at step {self.global_step} (in epoch {epoch+1})")
                     
-                    # Force garbage collection before validation
+                    # Force garbage collection before validation on all ranks
                     import gc
                     gc.collect()
                     torch.cuda.empty_cache()
                     
-                    # Set a time limit for validation
-                    try:
-                        self._run_validation(val_loader)
-                    except Exception as e:
-                        print(f"Validation failed with error: {e}")
-                        import traceback
-                        traceback.print_exc()
+                    # Run distributed validation
+                    self._run_validation(val_loader)
                     
-                    # Force garbage collection after validation
+                    # Force garbage collection after validation on all ranks
                     gc.collect()
                     torch.cuda.empty_cache()
-                
-                self.global_step += 1
                 
         # Save final model
         if self.args.rank == 0:
@@ -491,38 +572,42 @@ class DDPFullTrainer:
                     print(f"Epoch {epoch+1}: Gradual unfreezing not implemented in DDP mode, all parameters unfrozen")
 
     def _run_validation(self, val_loader):
-        """Run validation and log results"""
+        """Run validation and log results in a distributed setting"""
+        # All ranks participate in validation
+        validation_start_time = time.time()
+        
         if self.args.rank == 0:
-            print(f"\n=== Starting validation at step {self.global_step} ===")
-            validation_start_time = time.time()
+            print(f"\n=== Starting distributed validation at step {self.global_step} ===")
+        
+        # All ranks call evaluate method (no try/except - errors will propagate)
+        metrics = self.evaluate(val_loader)
+        
+        # Calculate elapsed time
+        elapsed = time.time() - validation_start_time
+        
+        # Only rank 0 logs the results
+        if self.args.rank == 0:
+            print(f"Validation completed in {elapsed:.2f} seconds")
             
-            try:
-                # Directly call evaluate method
-                metrics = self.evaluate(val_loader)
-                
-                # Calculate elapsed time
-                elapsed = time.time() - validation_start_time
-                print(f"Validation completed in {elapsed:.2f} seconds")
-                
-                # Log validation metrics
-                val_metrics = metrics.copy()
-                val_metrics.update({
-                    "iteration": self.global_step,
-                    "epoch": self.current_epoch,
-                    "lr": self.scheduler.get_last_lr()[0],
-                    "validation_time_seconds": elapsed,
-                    "type": "validation"
-                })
-                self.metrics_logger.log_metrics(val_metrics)
-                
-            except Exception as e:
-                print(f"Error during validation: {e}")
-                import traceback
-                traceback.print_exc()
-            
-            # Switch back to training mode
-            self.model.train()
-            print(f"=== Validation complete at step {self.global_step} ===\n")
+            # Log validation metrics
+            val_metrics = metrics.copy()
+            val_metrics.update({
+                "iteration": self.global_step,
+                "epoch": self.current_epoch,
+                "lr": self.scheduler.get_last_lr()[0],
+                "validation_time_seconds": elapsed,
+                "type": "validation"
+            })
+            self.metrics_logger.log_metrics(val_metrics)
+        
+        # Make sure all processes synchronize before continuing
+        dist.barrier()
+        
+        # Switch back to training mode on all ranks
+        self.model.train()
+        
+        if self.args.rank == 0:
+            print(f"=== Distributed validation complete at step {self.global_step} ===\n")
 
     def reset_running_metrics(self):
         """Reset running metrics for a new epoch"""
@@ -632,32 +717,41 @@ def main(args):
         pin_memory=True,
     )
     
-    # Validation dataloader - does not need to be sharded for rank 0
+    # Create validation dataset - on all ranks
+    full_df = pd.read_csv(csv_path)
+    val_df = full_df[full_df['split'] == 'val'].copy()
+    
+    # Print validation stats on rank 0
     if global_rank == 0:
-        full_df = pd.read_csv(csv_path)
-        val_df = full_df[full_df['split'] == 'val'].copy()
-        ########################################################################################
-        # total_val_count = len(val_df)
-        # if len(val_df) > 100:
-        #     val_df = val_df.head(100)  # Simply take first 100 to avoid sampling complexity
-        #     print(f"Using first 100 samples from validation set (total: {total_val_count})")
-        ########################################################################################
-        val_ds = NLSTDataset(
-            df=val_df,
-            processor=processor,
-            label_cols=label_cols
-        )
-        
-        val_loader = DataLoader(
-            val_ds, 
-            batch_size=1, 
-            shuffle=False,
-            num_workers=args.num_workers, 
-            collate_fn=lambda b: b[0]
-        )
-        print(f"Created validation loader with {len(val_ds)} samples")
-    else:
-        val_loader = None
+        print(f"Total validation samples: {len(val_df)}")
+    
+    # Create validation dataset - on all ranks
+    val_ds = NLSTDataset(
+        df=val_df,
+        processor=processor,
+        label_cols=label_cols
+    )
+    
+    # Create distributed sampler for validation - all ranks get a shard
+    val_sampler = torch.utils.data.distributed.DistributedSampler(
+        val_ds, 
+        num_replicas=world_size,
+        rank=global_rank,
+        shuffle=False,
+        drop_last=False
+    )
+    
+    # Create validation dataloader with the sampler
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=1,
+        sampler=val_sampler,
+        num_workers=args.num_workers,
+        collate_fn=lambda b: b[0]
+    )
+    
+    if global_rank == 0:
+        print(f"Created distributed validation loader, each rank processes ~{len(val_loader)} samples")
     
     # Calculate weights for balanced loss if needed
     if args.class_weights:
@@ -950,7 +1044,7 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-dir", type=str, 
                        default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
                        help="Directory to save training metrics")
-    parser.add_argument("--max-chunks", type=int, default=18, help="Maximum number of chunks to process per sample")
+    parser.add_argument("--max-chunks", type=int, default=48, help="Maximum number of chunks to process per sample")
     
     args = parser.parse_args()
     

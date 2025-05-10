@@ -62,6 +62,15 @@
 2. Also some ~max for data aggregation.
 
 
+# path 32 trained: max-chunks: 
+    18 works well, 
+    54 works on jupyterhub accum 20
+    jupyterhub : max_chunk=48 , accum=20  => start memory 19/40 ; on validation 6-8/40!
+    K8s        : max_chunk=48 , accum=100 =>  memory Error
+    K8s        : max_chunk=48 , accum=50  => memory Error
+    K8s        : max_chunk=48 , accum=30  => memory Error
+    K8s        : max_chunk=48 , accum=20  => memory Error !
+    K8s        : max_chunk=48 , accum=10  =>?
 
 
 # Main Hyperparams for training:
