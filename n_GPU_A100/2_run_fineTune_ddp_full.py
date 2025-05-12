@@ -204,14 +204,16 @@ class DDPFullTrainer:
             end_idx = min(chunks.size(0), start_idx + self.args.max_chunks)
             chunks = chunks[start_idx:end_idx]
         
-        # Forward pass with gradients
-        with torch.cuda.amp.autocast(enabled=True):
+        # Forward pass with mixed precision
+        with torch.cuda.amp.autocast(dtype=torch.float16):
             logits = self.model(chunks, spacing)
-        
+            
             loss = 0.0
             for j in range(logits.size(1)):
                 if mask_tensor[j]:
-                    task_loss = self.crit(logits[0, j:j+1], target[j:j+1])
+                    task_loss = self.crit(logits[0, j:j+1], target[j:j+1]) 
+                    # Mori:the weight in loss is probably not properly applied! 
+                    # Maybe later I can change logit where mask is False to 0.0. Actually in training and not here.
                     loss += task_loss
             
             # Normalize loss by number of tasks
@@ -219,11 +221,14 @@ class DDPFullTrainer:
             if active_tasks > 0:
                 loss = loss / active_tasks
         
-        # Backward pass
-        self.optimizer.zero_grad()
+        # Scale loss and backward pass
         self.scaler.scale(loss).backward()
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
+        
+        # Update weights if we've accumulated enough steps
+        if (self.global_step + 1) % self.args.accum_steps == 0:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.optimizer.zero_grad(set_to_none=True)  # More efficient than zero_grad()
         
         # Update learning rate AFTER optimizer step
         self.scheduler.step()
@@ -286,11 +291,16 @@ class DDPFullTrainer:
             # Calculate loss
             target = torch.tensor(labels, dtype=torch.float32, device=self.device)
             mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
-            
+            #print(chunks.shape, logits.shape, target.shape, mask_tensor.shape)#torch.Size([max_chunks, 3, 448, 448]) torch.Size([1, 6]) torch.Size([6]) torch.Size([6])
+            #print("logit" ,logits )#logit tensor([[ 1.0563,  0.4275,  0.4167,  0.1464, -0.3098, -1.9752]],device='cuda:3')
+            #print("target" ,target)#target tensor([ 0., -1., -1., -1., -1., -1.], device='cuda:3')
+            #print("mask_tensor" ,mask_tensor)#mask_tensor tensor([ True, False, False, False, False, False], device='cuda:3')
             loss = 0.0
             for j in range(logits.size(1)):
                 if mask_tensor[j]:
                     task_loss = self.crit(logits[0, j:j+1], target[j:j+1])
+                    # Mori:the weight in loss is probably not properly applied! 
+                    # Maybe later I can change logit where mask is False to 0.0. Actually in training and not here. 
                     loss += task_loss
             
             # Normalize loss
@@ -307,7 +317,7 @@ class DDPFullTrainer:
             local_samples += 1
         
         # Convert to tensors for gathering
-        if local_preds:
+        if local_preds: #torch.Size([7, 1, 6]) torch.Size([7, 6]) torch.Size([7, 6])
             # Use stack for all tensors to ensure consistent [S, T] shape
             local_preds_tensor = torch.stack(local_preds, dim=0)
             local_targets_tensor = torch.stack(local_targets, dim=0)  
@@ -318,7 +328,8 @@ class DDPFullTrainer:
             local_preds_tensor = torch.zeros((0, num_tasks), dtype=torch.float32)
             local_targets_tensor = torch.zeros((0, num_tasks), dtype=torch.float32)
             local_masks_tensor = torch.zeros((0, num_tasks), dtype=torch.bool)
-        
+        #print("## 33 ##", local_preds_tensor.shape, local_targets_tensor.shape, local_masks_tensor.shape)
+        ## 33 ## torch.Size([1289, 1, 6]) torch.Size([1289, 6]) torch.Size([1289, 6])
         # Move tensors to device for all_gather
         local_preds_tensor = local_preds_tensor.to(self.device)
         local_targets_tensor = local_targets_tensor.to(self.device)
@@ -373,6 +384,14 @@ class DDPFullTrainer:
         dist.all_gather(gathered_preds, local_preds_tensor)
         dist.all_gather(gathered_targets, local_targets_tensor)
         dist.all_gather(gathered_masks, local_masks_tensor)
+        #print("## 34 ##", gathered_preds[0].shape, gathered_targets[0].shape, gathered_masks[0].shape)
+        ## 34 ## torch.Size([1289, 1, 6]) torch.Size([1289, 6]) torch.Size([1289, 6])
+        #print("## 34 ##", len(gathered_preds), len(gathered_targets), len(gathered_masks))## 34 ## 4 4 4
+
+        #print("#########")
+        #print("## 36 ##", all_sizes, local_size) 
+        ## 36 ## [tensor([1289], device='cuda:2'), tensor([1289], device='cuda:2'), tensor([1289], device='cuda:2'), tensor([1289], device='cuda:2')] [tensor([1289], device='cuda:3'), tensor([1289], device='cuda:3'), tensor([1289], device='cuda:3'), tensor([1289], device='cuda:3')] tensor([1289], device='cuda:2')
+        #print()
         
         # Only rank 0 computes the actual metrics
         if self.args.rank == 0:
@@ -388,31 +407,55 @@ class DDPFullTrainer:
                     valid_masks.append(gathered_masks[i][:size])
             
             # Combine all gathered data
-            all_preds = torch.cat(valid_preds, dim=0).cpu().numpy()
+            #all_preds = torch.cat(valid_preds, dim=0).cpu().numpy()
+            all_preds = torch.cat(valid_preds, dim=0).squeeze(1).cpu().numpy()
             all_targets = torch.cat(valid_targets, dim=0).cpu().numpy()
             all_masks = torch.cat(valid_masks, dim=0).cpu().numpy()
             
-            # Compute metrics for each task
             for i in range(all_preds.shape[1]):
                 valid_idx = all_masks[:, i]
-                if np.sum(valid_idx) > 0:
-                    task_preds = all_preds[valid_idx, i]
-                    task_targets = all_targets[valid_idx, i]
-                    
-                    try:
-                        # Calculate AUC using raw logits
-                        auc = roc_auc_score(task_targets, task_preds)
-                        metrics[f'auc_task{i}'] = auc
-                        
-                        # Calculate accuracy with sigmoid transformation
-                        pred_probs = 1 / (1 + np.exp(-task_preds))  # sigmoid
-                        pred_labels = (pred_probs > 0.5).astype(int)
-                        acc = np.mean(pred_labels == task_targets)
-                        metrics[f'acc_task{i}'] = acc
-                    except Exception as e:
-                        print(f"Error calculating metrics for task {i}: {str(e)}")
-                        metrics[f'auc_task{i}'] = float('nan')
-                        metrics[f'acc_task{i}'] = float('nan')
+                if valid_idx.sum() == 0:
+                    continue
+
+                task_preds   = all_preds[valid_idx, i]
+                task_targets = all_targets[valid_idx, i]
+
+                #  keep only entries where target is 0 or 1
+                keep = (task_targets == 0) | (task_targets == 1)
+                task_preds, task_targets = task_preds[keep], task_targets[keep]
+
+                #  debug: if anything was dropped, print the unique values once
+                if self.args.rank == 0 and np.unique(task_targets).size < np.unique(all_targets[valid_idx, i]).size:
+                    bad_vals = set(all_targets[valid_idx, i]) - {0, 1}
+                    print(f"[WARN] Task {i}: dropped labels {bad_vals}")
+
+                #  need both classes left to compute AUC
+                if np.unique(task_targets).size < 2:
+                    metrics[f'auc_task{i}'] = np.nan
+                    metrics[f'acc_task{i}'] = np.nan
+                    continue
+
+                # --- DEBUG BLOCK ----------------------------------------------------
+                bad_vals = np.setdiff1d(task_targets, [0, 1])
+                if bad_vals.size > 0:
+                    # Print once per task per validation
+                    print(f"[Rank {self.args.rank}] Task {i} – bad labels detected: {bad_vals}")
+                    # Optional: locate the offending rows (expensive, so enable only if needed)
+                    bad_rows = np.where(~np.isin(task_targets, [0, 1]))[0]
+                    print(f"Bad rows (local indices): {bad_rows[:20]} ...")
+                    # You could also log IDs if your dataset returns them.
+
+                    # Drop the invalid entries so metrics still compute
+                    keep = np.isin(task_targets, [0, 1])
+                    task_preds, task_targets = task_preds[keep], task_targets[keep]
+                # --------------------------------------------------------------------
+                #  metrics
+                auc = roc_auc_score(task_targets, task_preds)
+                metrics[f'auc_task{i}'] = auc
+
+                prob = 1 / (1 + np.exp(-task_preds))
+                acc  = (prob > 0.5).astype(int).mean()
+                metrics[f'acc_task{i}'] = acc
         
         # More efficient metrics broadcasting
         metrics = metrics if self.args.rank == 0 else None
@@ -531,6 +574,30 @@ class DDPFullTrainer:
                     # Force garbage collection after validation on all ranks
                     gc.collect()
                     torch.cuda.empty_cache()
+            
+            # Save checkpoint after each epoch
+            if self.args.rank == 0:
+                checkpoint_metadata = {
+                    'label_cols': self.label_cols,
+                    'model_config': {
+                        'num_attn_heads': self.args.num_attn_heads,
+                        'num_layers': self.args.num_layers,
+                        'dropout_rate': self.args.dropout
+                    },
+                    'epoch_metrics': {
+                        'epoch': epoch + 1,
+                        'total_steps': self.global_step,
+                        'learning_rate': self.scheduler.get_last_lr()[0]
+                    }
+                }
+                self.model_saver.save_checkpoint(
+                    model=self.model,
+                    epoch=epoch + 1,
+                    global_step=self.global_step,
+                    metadata=checkpoint_metadata,
+                    is_final=False
+                )
+                print(f"\nSaved checkpoint for epoch {epoch + 1}")
                 
         # Save final model
         if self.args.rank == 0:
@@ -1044,7 +1111,7 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-dir", type=str, 
                        default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
                        help="Directory to save training metrics")
-    parser.add_argument("--max-chunks", type=int, default=48, help="Maximum number of chunks to process per sample")
+    parser.add_argument("--max-chunks", type=int, default=60, help="Maximum number of chunks to process per sample")
     
     args = parser.parse_args()
     

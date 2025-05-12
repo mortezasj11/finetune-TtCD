@@ -1,30 +1,30 @@
-Name:                 msalehjahromi-torchrun-ftn-25g2p
+Name:                 msalehjahromi-torchrun-ftn-n62br
 Namespace:            yn-gpu-workload
 Priority:             1000
 Priority Class Name:  high-nonpreempting
 Service Account:      default
-Node:                 hpcgpu12/10.113.120.211
-Start Time:           Fri, 09 May 2025 20:42:05 -0500
-Labels:               batch.kubernetes.io/controller-uid=fc2ceb84-c4d2-4f55-9354-a279d4c6153c
+Node:                 hpcgpu01/10.113.120.200
+Start Time:           Sat, 10 May 2025 13:19:49 -0500
+Labels:               batch.kubernetes.io/controller-uid=0990c677-e482-4794-bf3b-4dab92ebc6a0
                       batch.kubernetes.io/job-name=msalehjahromi-torchrun-ftn
-                      controller-uid=fc2ceb84-c4d2-4f55-9354-a279d4c6153c
+                      controller-uid=0990c677-e482-4794-bf3b-4dab92ebc6a0
                       job-name=msalehjahromi-torchrun-ftn
                       k8s-user=msalehjahromi
                       runai/queue=msalehjahromi-yn-gpu-workload-queue
-Annotations:          cni.projectcalico.org/containerID: 25c71e26fd118f0568afd27553128af65a778a7f3ed024b02cbb7f290e611546
-                      cni.projectcalico.org/podIP: 10.0.117.190/32
-                      cni.projectcalico.org/podIPs: 10.0.117.190/32
-                      pod-group-name: pg-msalehjahromi-torchrun-ftn-25g2p-fc2ceb84-c4d2-4f55-9354-a279d4c6153c
+Annotations:          cni.projectcalico.org/containerID: 7975e48b44415e00a29cf6f4d642db6cb12b8c5463152be70e0f5c66f61806ed
+                      cni.projectcalico.org/podIP: 10.0.111.5/32
+                      cni.projectcalico.org/podIPs: 10.0.111.5/32
+                      pod-group-name: pg-msalehjahromi-torchrun-ftn-n62br-0990c677-e482-4794-bf3b-4dab92ebc6a0
                       received-resource-type: Regular
-                      runai-job-id: fc2ceb84-c4d2-4f55-9354-a279d4c6153c
+                      runai-job-id: 0990c677-e482-4794-bf3b-4dab92ebc6a0
 Status:               Running
-IP:                   10.0.117.190
+IP:                   10.0.111.5
 IPs:
-  IP:           10.0.117.190
+  IP:           10.0.111.5
 Controlled By:  Job/msalehjahromi-torchrun-ftn
 Containers:
   main:
-    Container ID:  containerd://436abb8c261a3d146921e0b63d772e1f5ccd308251d3b74d28135dca033790eb
+    Container ID:  containerd://e9133cbeea5f40fca8e22a4eb1bde76283f7a37b0dd4b709f3e9429e60170f7f
     Image:         hpcharbor.mdanderson.edu/nnunetv2/nnunetv2@sha256:4ab016ba4b356842be74fbf58159480598bfc015c8454339022aa0fcbfdc196d
     Image ID:      hpcharbor.mdanderson.edu/nnunetv2/nnunetv2@sha256:4ab016ba4b356842be74fbf58159480598bfc015c8454339022aa0fcbfdc196d
     Port:          <none>
@@ -39,7 +39,7 @@ Containers:
       --master_port=$(MASTER_PORT)
       /rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_ddp_launcher.py
     State:          Running
-      Started:      Fri, 09 May 2025 20:42:07 -0500
+      Started:      Sat, 10 May 2025 13:19:54 -0500
     Ready:          True
     Restart Count:  0
     Limits:
@@ -59,7 +59,7 @@ Containers:
       /dev/shm from shm (rw)
       /rsrch1/ip/msalehjahromi/ from home (rw)
       /rsrch7/home/ip_rsrch/wulab from ifp (rw)
-      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-l2vzp (ro)
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-vh2dx (ro)
 Conditions:
   Type              Status
   PodBound          True 
@@ -80,7 +80,7 @@ Volumes:
     Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
     ClaimName:  msalehjahromi-gpu-home
     ReadOnly:   false
-  kube-api-access-l2vzp:
+  kube-api-access-vh2dx:
     Type:                    Projected (a volume that contains injected data from multiple sources)
     TokenExpirationSeconds:  3607
     ConfigMapName:           kube-root-ca.crt
