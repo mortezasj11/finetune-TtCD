@@ -2,6 +2,21 @@ job-runner.sh 2_multiple_GPU.yaml.yaml
 kubectl delete job -n yn-gpu-workload msalehjahromi-torchrun-ftn
 kubectl apply -f x.yaml
 
+num-workers 
+max-chunk
+sizeLimit: 64Gi 
+
+
+Option B – skip shared memory altogether (one-liner in Python)
+Add two lines anywhere before you build the DataLoader (top of your training script is fine):
+
+import torch.multiprocessing as mp
+mp.set_sharing_strategy("file_system")
+
+That tells every DataLoader worker to pass tensors via regular temp-files instead of /dev/shm, so the shared-memory limit no longer matters. There is a small I/O overhead but it works on any Kubernetes setup.
+
+
+
 
 
 

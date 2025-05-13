@@ -233,7 +233,7 @@ if __name__ == "__main__":
     # Hardware parameters
     parser.add_argument("--num-gpus", type=int, default=8,
                         help="Number of GPUs to use for training")
-    parser.add_argument("--num-workers", type=int, default=10, 
+    parser.add_argument("--num-workers", type=int, default=1, 
                         help="Number of workers for data loading")
     
     # Training parameters

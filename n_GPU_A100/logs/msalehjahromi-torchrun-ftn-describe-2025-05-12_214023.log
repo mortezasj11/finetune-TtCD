@@ -1,0 +1,62 @@
+Name:             msalehjahromi-torchrun-ftn
+Namespace:        yn-gpu-workload
+Selector:         batch.kubernetes.io/controller-uid=eeb8a746-74a3-4af9-adbc-d24424785be8
+Labels:           k8s-user=msalehjahromi
+Annotations:      <none>
+Parallelism:      1
+Completions:      1
+Completion Mode:  NonIndexed
+Start Time:       Mon, 12 May 2025 21:40:24 -0500
+Pods Statuses:    0 Active (0 Ready) / 0 Succeeded / 1 Failed
+Pod Template:
+  Labels:  batch.kubernetes.io/controller-uid=eeb8a746-74a3-4af9-adbc-d24424785be8
+           batch.kubernetes.io/job-name=msalehjahromi-torchrun-ftn
+           controller-uid=eeb8a746-74a3-4af9-adbc-d24424785be8
+           job-name=msalehjahromi-torchrun-ftn
+           k8s-user=msalehjahromi
+           runai/queue=msalehjahromi-yn-gpu-workload-queue
+  Containers:
+   main:
+    Image:      hpcharbor.mdanderson.edu/nnunetv2/nnunetv2@sha256:4ab016ba4b356842be74fbf58159480598bfc015c8454339022aa0fcbfdc196d
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      torchrun
+    Args:
+      --nproc_per_node=8
+      --nnodes=1
+      --node_rank=0
+      --master_addr=$(MASTER_ADDR)
+      --master_port=$(MASTER_PORT)
+      /rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_fsdp_launcher.py
+    Limits:
+      cpu:             192
+      nvidia.com/gpu:  8
+    Requests:
+      cpu:             192
+      nvidia.com/gpu:  8
+    Environment:
+      HOME:                /rsrch1/ip/msalehjahromi
+      MASTER_ADDR:          (v1:status.podIP)
+      MASTER_PORT:         29500
+      NCCL_DEBUG:          INFO
+      NCCL_SOCKET_IFNAME:  eth0
+      NCCL_IB_DISABLE:     1
+    Mounts:
+      /dev/shm from shm (rw)
+      /rsrch1/ip/msalehjahromi/ from home (rw)
+      /rsrch7/home/ip_rsrch/wulab from ifp (rw)
+  Volumes:
+   shm:
+    Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+    Medium:     Memory
+    SizeLimit:  64Gi
+   ifp:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  msalehjahromi-gpu-rsrch7-home-ip-rsrch
+    ReadOnly:   false
+   home:
+    Type:       PersistentVolumeClaim (a reference to a PersistentVolumeClaim in the same namespace)
+    ClaimName:  msalehjahromi-gpu-home
+    ReadOnly:   false
+Events:         <none>

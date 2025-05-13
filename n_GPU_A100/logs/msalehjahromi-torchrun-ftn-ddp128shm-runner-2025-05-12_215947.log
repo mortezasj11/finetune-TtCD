@@ -1,0 +1,22 @@
+2025-05-12_215947: Deploying the 2_multiple_GPU_DDP.yaml job file.
+job.batch/msalehjahromi-torchrun-ftn-ddp128shm created
+2025-05-12_215947: Waiting for the pod of job/msalehjahromi-torchrun-ftn-ddp128shm to be ready before starting the log tailing process.
+2025-05-12_220018: Starting to tail the container log.
+2025-05-12_220018: Creating the log-runner.sh script.
+2025-05-12_220018: Executing the log-runner.sh script.
+2025-05-12_220018: The log-runner.sh script for job/msalehjahromi-torchrun-ftn-ddp128shm is now running.
+2025-05-12_220049: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp128shm appears to no longer be running.
+2025-05-12_220049: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp128shm.
+2025-05-12_220049: Job/msalehjahromi-torchrun-ftn-ddp128shm appears to still be active.  Starting the logger again.
+2025-05-12_220121: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp128shm appears to no longer be running.
+2025-05-12_220121: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp128shm.
+2025-05-12_220122: Job/msalehjahromi-torchrun-ftn-ddp128shm appears to still be active.  Starting the logger again.
+2025-05-12_220153: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp128shm appears to no longer be running.
+2025-05-12_220153: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp128shm.
+2025-05-12_220153: Job/msalehjahromi-torchrun-ftn-ddp128shm appears to still be active.  Starting the logger again.
+2025-05-12_220225: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp128shm appears to no longer be running.
+2025-05-12_220225: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp128shm.
+2025-05-12_220225: Job/msalehjahromi-torchrun-ftn-ddp128shm appears to still be active.  Starting the logger again.
+2025-05-12_220257: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp128shm appears to no longer be running.
+2025-05-12_220257: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp128shm.
+2025-05-12_220257: Job/msalehjahromi-torchrun-ftn-ddp128shm appears to still be active.  Starting the logger again.

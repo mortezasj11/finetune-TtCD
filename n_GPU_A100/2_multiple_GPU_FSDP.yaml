@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: msalehjahromi-torchrun-ftn
+  name: msalehjahromi-torchrun-ftn-fsdp
   namespace: yn-gpu-workload
   labels:
     k8s-user: msalehjahromi
@@ -26,7 +26,7 @@ spec:
         - name: shm
           emptyDir:
             medium: Memory
-            sizeLimit: '21474836480'  # 20 GB shared memory for efficient GPU communication
+            sizeLimit: 128Gi # '21474836480'  # 20 GB shared memory for efficient GPU communication
         - name: ifp
           persistentVolumeClaim:
             claimName: msalehjahromi-gpu-rsrch7-home-ip-rsrch
@@ -43,7 +43,7 @@ spec:
             "--node_rank=0", 
             "--master_addr=$(MASTER_ADDR)",
             "--master_port=$(MASTER_PORT)",
-            "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_ddp_launcher.py"
+            "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_fsdp_launcher.py"
           ]
           workingDir: "/rsrch1/ip/msalehjahromi"
           env:

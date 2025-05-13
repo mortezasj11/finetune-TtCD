@@ -1062,7 +1062,7 @@ def parse_args():
     parser.add_argument('--dist_backend', type=str, default='nccl', help='Distributed backend')
     
     # Data parameters
-    parser.add_argument('--num_workers', type=int, default=4, help='Number of data loading workers')
+    parser.add_argument('--num_workers', type=int, default=1, help='Number of data loading workers')
     parser.add_argument('--pin_memory', type=bool, default=True, help='Pin memory in data loader')
     
     # Logging parameters
@@ -1111,7 +1111,7 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-dir", type=str, 
                        default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
                        help="Directory to save training metrics")
-    parser.add_argument("--max-chunks", type=int, default=60, help="Maximum number of chunks to process per sample")
+    parser.add_argument("--max-chunks", type=int, default=48, help="Maximum number of chunks to process per sample")
     
     args = parser.parse_args()
     
