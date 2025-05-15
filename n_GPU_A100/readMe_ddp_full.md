@@ -6,6 +6,8 @@ num-workers
 max-chunk
 sizeLimit: 64Gi 
 
+docker run -it --rm --gpus '"device=4,5,6,7"' -p 12344:12344 --name msalehjahromi --shm-size=192G  --user root --cpuset-cpus=49-96 -v /rsrch7/home/ip_rsrch/wulab/:/rsrch7/home/ip_rsrch/wulab -v /rsrch1/ip/msalehjahromi/:/rsrch1/ip/msalehjahromi --name mori_jupyter nnunetv2:msalehjahromi
+
 
 Option B – skip shared memory altogether (one-liner in Python)
 Add two lines anywhere before you build the DataLoader (top of your training script is fine):

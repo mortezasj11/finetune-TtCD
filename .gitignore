@@ -1,2 +1,5 @@
 .*
 !.gitignore
+*.pt
+*.pth
+checkpoints/

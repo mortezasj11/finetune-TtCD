@@ -44,6 +44,13 @@ except ImportError:
     except ImportError:
         ShardingStrategy = None
 
+
+
+from torch.distributed.fsdp import CPUOffload
+import torch.multiprocessing as mp
+mp.set_sharing_strategy("file_system")
+
+
 # ======== Local utilities ====================================================
 from model_utils import (
     DinoVisionTransformer,
@@ -145,6 +152,7 @@ class FSDPTrainer:
             fsdp_kwargs["sharding_strategy"] = ShardingStrategy.FULL_SHARD
         if default_auto_wrap_policy is not None:
             fsdp_kwargs["auto_wrap_policy"] = default_auto_wrap_policy
+        #fsdp_kwargs["cpu_offload"] = CPUOffload(offload_params=True)
         self.model = FSDP(self.model, **fsdp_kwargs)
 
     def _init_criterion(self):
@@ -755,6 +763,9 @@ def main(args):
     ]
     train_loader, train_sampler, val_loader = build_data(args, global_rank, world_size, label_cols)
 
+    if dist.get_rank() == 0:
+        print(torch.cuda.get_device_name())
+        print("Total GPU memory:",torch.cuda.get_device_properties(0).total_memory / 2**30, "GiB")#39.3812255859375 GiB
     # Launch trainer
     trainer = FSDPTrainer(args, label_cols)
     trainer.fit(
@@ -808,7 +819,7 @@ if __name__ == "__main__":
         type=str,
         default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
     )
-    parser.add_argument("--max-chunks", type=int, default=16)
+    parser.add_argument("--max-chunks", type=int, default=8)##################################
     args = parser.parse_args()
 
     # one‑time package install marker

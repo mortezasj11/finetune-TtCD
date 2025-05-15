@@ -1,0 +1,85 @@
+2025-05-13 22:34:11,478 - INFO - Starting training on 3 GPUs with full model copies (DDP)
+2025-05-13 22:34:19,480 - INFO - using MLP layer as FFN
+2025-05-13 22:34:34,542 - INFO - DinoVisionTransformer parameters: 176 (LR: 1.0000000000000002e-06)
+2025-05-13 22:34:34,542 - INFO - Aggregator parameters: 26 (LR: 0.0001)
+2025-05-13 22:34:34,543 - INFO - Setting unfreeze_strategy to 'all' to avoid DDP synchronization issues
+2025-05-13 22:34:34,547 - INFO - using MLP layer as FFN
+2025-05-14 00:15:41,534 - INFO - Starting training on 3 GPUs with full model copies (DDP)
+2025-05-14 00:15:46,451 - INFO - using MLP layer as FFN
+2025-05-14 00:15:48,367 - INFO - DinoVisionTransformer parameters: 176 (LR: 1.0000000000000002e-06)
+2025-05-14 00:15:48,367 - INFO - Aggregator parameters: 26 (LR: 0.0001)
+2025-05-14 00:15:48,367 - INFO - Setting unfreeze_strategy to 'all' to avoid DDP synchronization issues
+2025-05-14 00:15:48,371 - INFO - using MLP layer as FFN
+2025-05-14 00:16:52,991 - INFO - Starting training on 3 GPUs with full model copies (DDP)
+2025-05-14 00:16:57,191 - INFO - using MLP layer as FFN
+2025-05-14 00:16:59,044 - INFO - DinoVisionTransformer parameters: 176 (LR: 1.0000000000000002e-06)
+2025-05-14 00:16:59,044 - INFO - Aggregator parameters: 26 (LR: 0.0001)
+2025-05-14 00:16:59,044 - INFO - Setting unfreeze_strategy to 'all' to avoid DDP synchronization issues
+2025-05-14 00:16:59,048 - INFO - using MLP layer as FFN
+2025-05-14 04:56:10,255 - INFO - Starting training on 4 GPUs with full model copies (DDP)
+2025-05-14 04:56:15,800 - INFO - using MLP layer as FFN
+2025-05-14 04:56:27,383 - INFO - DinoVisionTransformer parameters: 176 (LR: 1.0000000000000002e-06)
+2025-05-14 04:56:27,384 - INFO - Aggregator parameters: 26 (LR: 0.0001)
+2025-05-14 04:56:27,384 - INFO - Setting unfreeze_strategy to 'all' to avoid DDP synchronization issues
+2025-05-14 04:56:27,388 - INFO - using MLP layer as FFN
+2025-05-14 04:58:50,438 - INFO - Starting training on 3 GPUs with full model copies (DDP)
+2025-05-14 04:58:55,353 - INFO - using MLP layer as FFN
+2025-05-14 04:59:00,646 - INFO - DinoVisionTransformer parameters: 176 (LR: 1.0000000000000002e-06)
+2025-05-14 04:59:00,646 - INFO - Aggregator parameters: 26 (LR: 0.0001)
+2025-05-14 04:59:00,647 - INFO - Setting unfreeze_strategy to 'all' to avoid DDP synchronization issues
+2025-05-14 04:59:00,653 - INFO - using MLP layer as FFN
+2025-05-14 05:01:15,673 - INFO - iteration: 50 | epoch: 0 | loss: 0.8301 | lr: 0.0000 | type: training | acc_task0: 1.0000 | acc_task1: 0.9796 | acc_task2: 0.7447 | acc_task3: 0.0435 | acc_task4: 0.9310 | acc_task5: 0.1111
+2025-05-14 05:33:27,123 - INFO - samples_evaluated: 5154 | avg_loss: 0.5120 | auc_task0: 0.5140 | acc_task0: 0.0000 | auc_task1: 0.4553 | acc_task1: 0.0000 | auc_task2: 0.5679 | acc_task2: 0.0273 | auc_task3: 0.4903 | acc_task3: 0.5225 | auc_task4: 0.5199 | acc_task4: 0.0000 | auc_task5: 0.5435 | acc_task5: 1.0000 | iteration: 100 | epoch: 0 | lr: 0.0000 | validation_time_seconds: 1861.1568 | type: validation
+2025-05-14 05:33:34,328 - INFO - iteration: 100 | epoch: 0 | loss: 0.4590 | lr: 0.0000 | type: training | acc_task0: 1.0000 | acc_task1: 0.9897 | acc_task2: 0.8404 | acc_task3: 0.0860 | acc_task4: 0.9545 | acc_task5: 0.0789
+2025-05-14 05:34:34,764 - INFO - iteration: 150 | epoch: 0 | loss: 0.3204 | lr: 0.0000 | type: training | acc_task0: 0.9867 | acc_task1: 0.9796 | acc_task2: 0.8611 | acc_task3: 0.2727 | acc_task4: 0.9307 | acc_task5: 0.1406
+2025-05-14 05:37:59,509 - INFO - Starting training on 3 GPUs with full model copies (DDP)
+2025-05-14 05:38:06,500 - INFO - using MLP layer as FFN
+2025-05-14 05:38:40,900 - INFO - Starting training on 3 GPUs with full model copies (DDP)
+2025-05-14 05:38:48,288 - INFO - using MLP layer as FFN
+2025-05-14 05:38:54,338 - INFO - DinoVisionTransformer parameters: 176 (LR: 1.0000000000000002e-06)
+2025-05-14 05:38:54,338 - INFO - Aggregator parameters: 26 (LR: 0.0001)
+2025-05-14 05:38:54,338 - INFO - Setting unfreeze_strategy to 'all' to avoid DDP synchronization issues
+2025-05-14 05:38:54,342 - INFO - using MLP layer as FFN
+2025-05-14 05:46:34,103 - INFO - Starting training on 3 GPUs with full model copies (DDP)
+2025-05-14 05:46:41,393 - INFO - using MLP layer as FFN
+2025-05-14 05:46:44,246 - INFO - DinoVisionTransformer parameters: 176 (LR: 1.0000000000000002e-06)
+2025-05-14 05:46:44,246 - INFO - Aggregator parameters: 26 (LR: 0.0001)
+2025-05-14 05:46:44,247 - INFO - Setting unfreeze_strategy to 'all' to avoid DDP synchronization issues
+2025-05-14 05:46:44,251 - INFO - using MLP layer as FFN
+2025-05-14 06:37:44,828 - INFO - iteration: 2000 | epoch: 0 | loss: 0.5353 | lr: 0.0001 | type: training | acc_task0: 0.0200 | acc_task1: 0.9693 | acc_task2: 0.9585 | acc_task3: 0.0539 | acc_task4: 0.0767 | acc_task5: 0.8643
+2025-05-14 07:32:24,440 - INFO - iteration: 4000 | epoch: 0 | loss: 0.0147 | lr: 0.0001 | type: training | acc_task0: 0.5025 | acc_task1: 0.9741 | acc_task2: 0.9652 | acc_task3: 0.4597 | acc_task4: 0.3881 | acc_task5: 0.8778
+2025-05-14 08:23:53,927 - INFO - iteration: 6000 | epoch: 0 | loss: 0.0149 | lr: 0.0001 | type: training | acc_task0: 0.6630 | acc_task1: 0.9730 | acc_task2: 0.9640 | acc_task3: 0.6223 | acc_task4: 0.5669 | acc_task5: 0.8745
+2025-05-14 09:36:57,671 - INFO - iteration: 8000 | epoch: 0 | loss: 0.0159 | lr: 0.0001 | type: training | acc_task0: 0.7446 | acc_task1: 0.9739 | acc_task2: 0.9650 | acc_task3: 0.7070 | acc_task4: 0.6594 | acc_task5: 0.8763
+2025-05-14 10:41:10,922 - INFO - iteration: 10000 | epoch: 0 | loss: 0.0139 | lr: 0.0001 | type: training | acc_task0: 0.7917 | acc_task1: 0.9731 | acc_task2: 0.9643 | acc_task3: 0.7563 | acc_task4: 0.7131 | acc_task5: 0.8741
+2025-05-14 11:57:00,101 - INFO - iteration: 12000 | epoch: 1 | loss: 0.0260 | lr: 0.0001 | type: training | acc_task0: 0.9826 | acc_task1: 0.9706 | acc_task2: 0.9581 | acc_task3: 0.9481 | acc_task4: 0.9243 | acc_task5: 0.8571
+2025-05-14 13:27:30,722 - INFO - iteration: 14000 | epoch: 1 | loss: 0.0530 | lr: 0.0001 | type: training | acc_task0: 0.9839 | acc_task1: 0.9735 | acc_task2: 0.9635 | acc_task3: 0.9548 | acc_task4: 0.9333 | acc_task5: 0.8730
+2025-05-14 14:39:00,560 - INFO - iteration: 16000 | epoch: 1 | loss: 0.0212 | lr: 0.0001 | type: training | acc_task0: 0.9853 | acc_task1: 0.9744 | acc_task2: 0.9644 | acc_task3: 0.9565 | acc_task4: 0.9365 | acc_task5: 0.8786
+2025-05-14 15:22:27,570 - INFO - iteration: 18000 | epoch: 1 | loss: 0.0556 | lr: 0.0001 | type: training | acc_task0: 0.9850 | acc_task1: 0.9745 | acc_task2: 0.9646 | acc_task3: 0.9554 | acc_task4: 0.9341 | acc_task5: 0.8758
+2025-05-14 16:27:47,625 - INFO - iteration: 20000 | epoch: 1 | loss: 0.0461 | lr: 0.0001 | type: training | acc_task0: 0.9853 | acc_task1: 0.9747 | acc_task2: 0.9637 | acc_task3: 0.9546 | acc_task4: 0.9333 | acc_task5: 0.8756
+2025-05-14 17:36:37,315 - INFO - iteration: 22000 | epoch: 2 | loss: 0.0531 | lr: 0.0001 | type: training | acc_task0: 0.9819 | acc_task1: 0.9730 | acc_task2: 0.9661 | acc_task3: 0.9562 | acc_task4: 0.9343 | acc_task5: 0.8813
+2025-05-14 18:29:49,311 - INFO - iteration: 24000 | epoch: 2 | loss: 0.0492 | lr: 0.0001 | type: training | acc_task0: 0.9838 | acc_task1: 0.9733 | acc_task2: 0.9639 | acc_task3: 0.9539 | acc_task4: 0.9306 | acc_task5: 0.8719
+2025-05-14 19:31:58,803 - INFO - iteration: 26000 | epoch: 2 | loss: 0.0234 | lr: 0.0001 | type: training | acc_task0: 0.9844 | acc_task1: 0.9740 | acc_task2: 0.9646 | acc_task3: 0.9565 | acc_task4: 0.9343 | acc_task5: 0.8783
+2025-05-14 20:24:00,716 - INFO - iteration: 28000 | epoch: 2 | loss: 0.0162 | lr: 0.0001 | type: training | acc_task0: 0.9840 | acc_task1: 0.9733 | acc_task2: 0.9647 | acc_task3: 0.9561 | acc_task4: 0.9343 | acc_task5: 0.8790
+2025-05-14 21:13:29,293 - INFO - iteration: 30000 | epoch: 2 | loss: 0.3656 | lr: 0.0001 | type: training | acc_task0: 0.9842 | acc_task1: 0.9740 | acc_task2: 0.9651 | acc_task3: 0.9570 | acc_task4: 0.9356 | acc_task5: 0.8805
+2025-05-14 22:12:43,444 - INFO - iteration: 32000 | epoch: 3 | loss: 0.0506 | lr: 0.0001 | type: training | acc_task0: 0.9838 | acc_task1: 0.9731 | acc_task2: 0.9617 | acc_task3: 0.9516 | acc_task4: 0.9289 | acc_task5: 0.8672
+2025-05-14 23:27:01,326 - INFO - iteration: 34000 | epoch: 3 | loss: 0.0564 | lr: 0.0001 | type: training | acc_task0: 0.9829 | acc_task1: 0.9718 | acc_task2: 0.9615 | acc_task3: 0.9528 | acc_task4: 0.9285 | acc_task5: 0.8693
+2025-05-15 00:28:43,653 - INFO - iteration: 36000 | epoch: 3 | loss: 0.0424 | lr: 0.0001 | type: training | acc_task0: 0.9840 | acc_task1: 0.9743 | acc_task2: 0.9643 | acc_task3: 0.9543 | acc_task4: 0.9319 | acc_task5: 0.8760
+2025-05-15 01:33:31,180 - INFO - iteration: 38000 | epoch: 3 | loss: 0.0514 | lr: 0.0001 | type: training | acc_task0: 0.9843 | acc_task1: 0.9740 | acc_task2: 0.9636 | acc_task3: 0.9541 | acc_task4: 0.9323 | acc_task5: 0.8780
+2025-05-15 02:42:21,249 - INFO - iteration: 40000 | epoch: 3 | loss: 0.0257 | lr: 0.0001 | type: training | acc_task0: 0.9842 | acc_task1: 0.9740 | acc_task2: 0.9640 | acc_task3: 0.9553 | acc_task4: 0.9330 | acc_task5: 0.8786
+2025-05-15 03:45:30,195 - INFO - iteration: 42000 | epoch: 4 | loss: 0.0220 | lr: 0.0001 | type: training | acc_task0: 0.9892 | acc_task1: 0.9748 | acc_task2: 0.9696 | acc_task3: 0.9619 | acc_task4: 0.9404 | acc_task5: 0.8943
+2025-05-15 04:54:30,866 - INFO - iteration: 44000 | epoch: 4 | loss: 0.0716 | lr: 0.0001 | type: training | acc_task0: 0.9860 | acc_task1: 0.9785 | acc_task2: 0.9631 | acc_task3: 0.9557 | acc_task4: 0.9310 | acc_task5: 0.8712
+2025-05-15 05:50:19,908 - INFO - iteration: 46000 | epoch: 4 | loss: 0.0235 | lr: 0.0001 | type: training | acc_task0: 0.9858 | acc_task1: 0.9765 | acc_task2: 0.9636 | acc_task3: 0.9548 | acc_task4: 0.9315 | acc_task5: 0.8728
+2025-05-15 06:43:16,888 - INFO - iteration: 48000 | epoch: 4 | loss: 0.0249 | lr: 0.0001 | type: training | acc_task0: 0.9860 | acc_task1: 0.9764 | acc_task2: 0.9644 | acc_task3: 0.9558 | acc_task4: 0.9335 | acc_task5: 0.8739
+2025-05-15 08:05:25,157 - INFO - samples_evaluated: 5154 | avg_loss: 0.1493 | auc_task0: 0.5064 | acc_task0: 0.0000 | auc_task1: 0.5477 | acc_task1: 0.0000 | auc_task2: 0.5530 | acc_task2: 0.0000 | auc_task3: 0.5771 | acc_task3: 0.0000 | auc_task4: 0.5511 | acc_task4: 0.0000 | auc_task5: 0.6300 | acc_task5: 0.0000 | iteration: 50000 | epoch: 4 | lr: 0.0000 | validation_time_seconds: 1840.8723 | type: validation
+2025-05-15 08:05:27,869 - INFO - iteration: 50000 | epoch: 4 | loss: 0.0511 | lr: 0.0001 | type: training | acc_task0: 0.9862 | acc_task1: 0.9767 | acc_task2: 0.9656 | acc_task3: 0.9569 | acc_task4: 0.9358 | acc_task5: 0.8789
+2025-05-15 09:01:43,243 - INFO - iteration: 52000 | epoch: 5 | loss: 0.0597 | lr: 0.0001 | type: training | acc_task0: 0.9806 | acc_task1: 0.9702 | acc_task2: 0.9631 | acc_task3: 0.9615 | acc_task4: 0.9327 | acc_task5: 0.8722
+2025-05-15 09:59:37,483 - INFO - iteration: 54000 | epoch: 5 | loss: 0.0263 | lr: 0.0000 | type: training | acc_task0: 0.9818 | acc_task1: 0.9685 | acc_task2: 0.9565 | acc_task3: 0.9492 | acc_task4: 0.9272 | acc_task5: 0.8645
+2025-05-15 10:59:56,689 - INFO - iteration: 56000 | epoch: 5 | loss: 0.0351 | lr: 0.0000 | type: training | acc_task0: 0.9838 | acc_task1: 0.9710 | acc_task2: 0.9592 | acc_task3: 0.9526 | acc_task4: 0.9303 | acc_task5: 0.8728
+2025-05-15 12:02:17,880 - INFO - iteration: 58000 | epoch: 5 | loss: 0.0368 | lr: 0.0000 | type: training | acc_task0: 0.9842 | acc_task1: 0.9721 | acc_task2: 0.9604 | acc_task3: 0.9524 | acc_task4: 0.9296 | acc_task5: 0.8701
+2025-05-15 13:01:01,155 - INFO - iteration: 60000 | epoch: 5 | loss: 1.9016 | lr: 0.0000 | type: training | acc_task0: 0.9844 | acc_task1: 0.9731 | acc_task2: 0.9612 | acc_task3: 0.9534 | acc_task4: 0.9302 | acc_task5: 0.8717
+2025-05-15 13:54:32,935 - INFO - iteration: 62000 | epoch: 5 | loss: 0.0520 | lr: 0.0000 | type: training | acc_task0: 0.9846 | acc_task1: 0.9736 | acc_task2: 0.9622 | acc_task3: 0.9546 | acc_task4: 0.9318 | acc_task5: 0.8747
+2025-05-15 14:51:44,664 - INFO - iteration: 64000 | epoch: 6 | loss: 0.0352 | lr: 0.0000 | type: training | acc_task0: 0.9873 | acc_task1: 0.9716 | acc_task2: 0.9599 | acc_task3: 0.9538 | acc_task4: 0.9258 | acc_task5: 0.8642
+2025-05-15 15:48:54,630 - INFO - iteration: 66000 | epoch: 6 | loss: 0.0437 | lr: 0.0000 | type: training | acc_task0: 0.9856 | acc_task1: 0.9721 | acc_task2: 0.9593 | acc_task3: 0.9523 | acc_task4: 0.9260 | acc_task5: 0.8616
+2025-05-15 16:45:44,280 - INFO - iteration: 68000 | epoch: 6 | loss: 0.0326 | lr: 0.0000 | type: training | acc_task0: 0.9846 | acc_task1: 0.9717 | acc_task2: 0.9604 | acc_task3: 0.9527 | acc_task4: 0.9284 | acc_task5: 0.8677
+2025-05-15 17:44:02,727 - INFO - iteration: 70000 | epoch: 6 | loss: 0.0323 | lr: 0.0000 | type: training | acc_task0: 0.9838 | acc_task1: 0.9715 | acc_task2: 0.9605 | acc_task3: 0.9530 | acc_task4: 0.9281 | acc_task5: 0.8682
+2025-05-15 18:43:12,959 - INFO - iteration: 72000 | epoch: 6 | loss: 0.0475 | lr: 0.0000 | type: training | acc_task0: 0.9849 | acc_task1: 0.9728 | acc_task2: 0.9615 | acc_task3: 0.9536 | acc_task4: 0.9298 | acc_task5: 0.8695

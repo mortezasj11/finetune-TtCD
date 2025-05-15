@@ -449,14 +449,17 @@ class DDPFullTrainer:
                     keep = np.isin(task_targets, [0, 1])
                     task_preds, task_targets = task_preds[keep], task_targets[keep]
                 # --------------------------------------------------------------------
-                #  metrics
+
+                # ---- metrics -------------------------------------------------------
                 auc = roc_auc_score(task_targets, task_preds)
                 metrics[f'auc_task{i}'] = auc
 
-                prob = 1 / (1 + np.exp(-task_preds))
-                acc  = (prob > 0.5).astype(int).mean()
+                prob = 1 / (1 + np.exp(-task_preds))          # sigmoid
+                pred_labels = (prob > 0.5).astype(int)        # 0/1
+                acc = (pred_labels == task_targets.astype(int)).mean()
                 metrics[f'acc_task{i}'] = acc
-        
+
+      
         # More efficient metrics broadcasting
         metrics = metrics if self.args.rank == 0 else None
         metrics_list = [metrics]
@@ -1111,7 +1114,7 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-dir", type=str, 
                        default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
                        help="Directory to save training metrics")
-    parser.add_argument("--max-chunks", type=int, default=48, help="Maximum number of chunks to process per sample")
+    parser.add_argument("--max-chunks", type=int, default=72, help="Maximum number of chunks to process per sample")
     
     args = parser.parse_args()
     

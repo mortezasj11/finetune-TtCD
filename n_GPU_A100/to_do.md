@@ -37,8 +37,38 @@
    -[x] Investigate maximum-based data aggregation 
 
 
-# Train Test
-## Key Hyperparameters  
+## Remove 100 in validation now that it works. 
+
+
+1. Apply nnUNET on cases that have nodules.
+2. Finetune based on nodule attention map only.
+3. Test if it has learned.
+4. Finetune based on NLST loss. 
+
+## Losses
+1. Read other losses in Sybil
+2. Also some ~max for data aggregation.
+
+
+## patch 32 trained: max-chunks: 
+    jupyterhub : max_chunk=48 , accum=20  => start memory 19/40 ; on validation 6-8/40!
+    K8s        : max_chunk=48 , accum=20  => memory Error !
+    K8s        : max_chunk=48 , accum=10  => memory Error !
+
+## So I have no choice than train it on our DGX
+
+
+## Main Hyperparams for training
+- min, max eps    # WRONG on my First Test
+- epochs
+- accum-steps
+- num-workers
+- which base to choose patch-size:16 or 32
+    *can I run them with the one with patch-size 16 ?
+- if overfitting, then what?  
+
+## Train Test
+### Key Hyperparameters  
 -  **I need to remove 88 on Validation**
 - `epochs`: 50
 - `accum-steps`: at least 1000
@@ -47,32 +77,3 @@
 - `warmup-steps`: 5k
 - `print-every` : 1000
 - `val-every` : 50000
-
-
-# Remove 100 in validation now that it works. 
-
-
-1. Apply nnUNET on cases that have nodules.
-2. Finetune based on nodule attention map only.
-3. Test if it has learned.
-4. Finetune based on NLST loss. 
-
-# Losses
-1. Read other losses in Sybil
-2. Also some ~max for data aggregation.
-
-
-# path 32 trained: max-chunks: 
-    18 works well, 
-    54 works on jupyterhub accum 20
-    jupyterhub : max_chunk=48 , accum=20  => start memory 19/40 ; on validation 6-8/40!
-    K8s        : max_chunk=48 , accum=100 =>  memory Error
-    K8s        : max_chunk=48 , accum=50  => memory Error
-    K8s        : max_chunk=48 , accum=30  => memory Error
-    K8s        : max_chunk=48 , accum=20  => memory Error !
-    K8s        : max_chunk=48 , accum=10  =>?
-
-
-# Main Hyperparams for training:
-    epochs
-    accum-steps

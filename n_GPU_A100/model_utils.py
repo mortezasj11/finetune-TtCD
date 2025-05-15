@@ -323,7 +323,7 @@ class CombinedModel(nn.Module):
                 param.requires_grad = True
 
 class VolumeProcessor:
-    def __init__(self, chunk_depth=3, out_size=(448, 448), vmin=-1000, vmax=1000, eps=1e-6):
+    def __init__(self, chunk_depth=3, out_size=(448, 448), vmin=-500, vmax=100, eps=0.00005):
         self.chunk_depth = chunk_depth
         self.out_size = out_size
         self.vmin = vmin

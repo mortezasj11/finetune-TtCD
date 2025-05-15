@@ -2,7 +2,7 @@
     apiVersion: batch/v1
     kind: Job
     metadata:
-      name: msalehjahromi-torchrun-ftn-ddp128shm
+      name: msalehjahromi-torchrun-ftn-ddp
       namespace: yn-gpu-workload
       labels:
         k8s-user: msalehjahromi
