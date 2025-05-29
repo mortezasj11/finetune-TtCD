@@ -175,8 +175,7 @@ def main(args):
     os.makedirs(metrics_dir, exist_ok=True)
         
     # Path to the training script
-    # script_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_ddp.py"
-    script_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100/2_run_fineTune_ddp_full.py"
+    script_path = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100_v2/2_run_fineTune_ddp_full.py"
     
     # Get a random port
     port = _get_available_port()
@@ -230,9 +229,9 @@ if __name__ == "__main__":
                         help="Path to the CSV file containing dataset information")
     parser.add_argument("--balance-val", action="store_true", 
                         help="Whether to balance the validation set")
-    parser.add_argument("--class-weights", action="store_true", default=True,
+    parser.add_argument("--class-weights", action="store_false", default=True,
                         help="Whether to use class weights in the loss function (default: True)")
-    parser.add_argument("--no-class-weights", dest="class_weights", action="store_false",
+    parser.add_argument("--no-class-weights", dest="class_weights", action="store_true",
                         help="Disable class weights in the loss function")
     
     # Hardware parameters

@@ -70,10 +70,17 @@
 ## Train Test
 ### Key Hyperparameters  
 -  **I need to remove 88 on Validation**
-- `epochs`: 50
-- `accum-steps`: at least 1000
+- `epochs`: 100
+- `accum-steps`: at least 1000 ?
 - `max-chunks`: 66 
-- `lr`:  ?
+- `lr`:  I need to increase it based on previous training, not sure
 - `warmup-steps`: 5k
-- `print-every` : 1000
-- `val-every` : 50000
+- `print-every` : 5000
+- `val-every` : 40000
+
+
+# running on our DGX
+- docker run -it --rm --gpus '"device=4,5,6,7"' -p 12344:12344 --name msalehjahromi --shm-size=192G  --user $(id -u):$(id -g) --group-add 1944259512 --cpuset-cpus=49-96 -v /rsrch7/home/ip_rsrch/wulab/:/rsrch7/home/ip_rsrch/wulab -v /rsrch1/ip/msalehjahromi/:/rsrch1/ip/msalehjahromi --name mori_jupyter nnunetv2:msalehjahromi
+- cd /rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100
+- jupyter notebook --ip 0.0.0.0 --port 12344
+- http://1mcprddgx05/

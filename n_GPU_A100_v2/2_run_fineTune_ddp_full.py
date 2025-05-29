@@ -1,4 +1,3 @@
-# File: n_GPU_A100/2_run_fineTune_ddp_full.py
 
 import os
 import logging
@@ -29,7 +28,9 @@ from model_utils import (
     MetricsCalculator,
     augment_3_channel,
     ModelSaver,
-    load_latest_checkpoint 
+    load_latest_checkpoint,
+    make_balanced_sampler,
+    print_training_dataset_stats
 )
 
 print("Files in the directory:", os.listdir("/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU"))
@@ -152,21 +153,6 @@ class DDPFullTrainer:
                                           device=self.device,
                                           rank=self.args.rank)
 
-    # def _init_criterion(self):
-    #     """Initialize the loss function"""
-    #     if self.args.class_weights:
-    #         # Load weights from CSV
-    #         train_df = pd.read_csv(self.args.csv).query("split == 'train'")
-    #         weights = calculate_class_weights(train_df, self.label_cols) 
-    #         weights = weights.to(self.device) #[4, 5 , 5, 5, 5, 5  ]
-    #         self.crit = torch.nn.BCEWithLogitsLoss(pos_weight=weights, reduction='none')
-    #         if self.args.rank == 0:
-    #             print(f"Using class weights: {weights.cpu().numpy()}")
-    #     else:
-    #         self.crit = torch.nn.BCEWithLogitsLoss(reduction='none')
-    #         if self.args.rank == 0:
-    #             print("Using unweighted loss (no class weights)")
-
     def _init_criterion(self):
         if self.args.class_weights:
             # compute a tensor of shape [num_tasks]
@@ -203,7 +189,7 @@ class DDPFullTrainer:
                 else:
                     agg_params.append(param)
 
-        print(len(base_params), len(agg_params))  # should both be >0
+        #print(len(base_params), len(agg_params))  # should both be >0
         assert len(base_params) > 0 and len(agg_params) > 0, "param-split failed!"
 
         # Configure optimizer with parameter groups
@@ -588,7 +574,7 @@ class DDPFullTrainer:
             # Reset running metrics at the start of each epoch
             self.reset_running_metrics()
             
-            if train_sampler:
+            if train_sampler and hasattr(train_sampler, "set_epoch"):
                 train_sampler.set_epoch(epoch)
             
             # Handle unfreezing strategy
@@ -860,37 +846,12 @@ def main(args):
     print(f"Train dataset created on rank ")
     # Print basic dataset statistics (only on rank 0)
     if global_rank == 0:
-        # Load the full dataframe
-        full_df = pd.read_csv(csv_path)
-        train_df = full_df[full_df['split'] == 'train']
-        val_df_stats = full_df[full_df['split'] == 'val']
-        #test_df_stats = full_df[full_df['split'] == 'test']
-        
-        print("\n==== Dataset Statistics ====")
-        print(f"Total samples: {len(full_df)}")
-        print(f"Training samples: {len(train_df)}")
-        print(f"Validation samples: {len(val_df_stats)}")
-        
-        # Print class distribution for each label column
-        for col in label_cols:
-            if col in train_df.columns:
-                # Use basic sum() to count positive samples
-                pos_train = sum(train_df[col] == 1)
-                pos_val = sum(val_df_stats[col] == 1)
-                
-                # Calculate percentages
-                train_pct = 100 * pos_train / len(train_df) if len(train_df) > 0 else 0
-                val_pct = 100 * pos_val / len(val_df_stats) if len(val_df_stats) > 0 else 0
-                
-                print(f"\n{col}:")
-                print(f"  Train positive: {pos_train} ({train_pct:.2f}%)")
-                print(f"  Val positive: {pos_val} ({val_pct:.2f}%)")
-        print("============================\n")
-        
+        print_training_dataset_stats(csv_path, label_cols)
+    
     # Each rank gets a distinct shard; shuffle is done by the sampler
-    train_sampler = torch.utils.data.distributed.DistributedSampler(
-        train_ds, num_replicas=world_size, rank=global_rank, shuffle=True
-    )
+    # train_sampler = torch.utils.data.distributed.DistributedSampler(
+    #     train_ds, num_replicas=world_size, rank=global_rank, shuffle=True )
+    train_sampler = make_balanced_sampler(train_ds, "1-year-cancer")
     
     train_loader = DataLoader(
         train_ds,
@@ -1052,9 +1013,9 @@ if __name__ == "__main__":
                         help="Path to the CSV file containing dataset information")
     parser.add_argument("--balance-val", action="store_true", 
                         help="Whether to balance the validation set")
-    parser.add_argument("--class-weights", action="store_true", default=True,
+    parser.add_argument("--class-weights", action="store_false", default=True,
                         help="Whether to use class weights in the loss function (default: True)")
-    parser.add_argument("--no-class-weights", dest="class_weights", action="store_false",
+    parser.add_argument("--no-class-weights", dest="class_weights", action="store_true",
                         help="Disable class weights in the loss function")
     parser.add_argument("--accum-steps", type=int, default=10, 
                         help="Number of steps to accumulate gradients over")

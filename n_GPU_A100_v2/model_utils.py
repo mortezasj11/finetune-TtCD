@@ -9,21 +9,16 @@ import nibabel as nib
 import json
 import time
 import subprocess
+from torch.utils.data import WeightedRandomSampler
 from torchmetrics.functional import auroc
 from sklearn.metrics import roc_auc_score
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 from typing import Dict, Any, List, Optional, Callable
 import torchvision.transforms as T
-
-
-# Import DinoVisionTransformer class from dinov2 package for reusability
 import sys
 sys.path.insert(0, "/rsrch1/ip/msalehjahromi/codes/dinov2-torchrun-dataloader6")
-
 from dinov2.models.vision_transformer import DinoVisionTransformer
-
-# ===================== Add utility functions from 2_run_fineTune_ddp_full.py =====================
 
 def install_packages():
     commands = [
@@ -35,7 +30,6 @@ def install_packages():
     ]
     for i, command in enumerate(commands):
         result = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
 
 def prepare_balanced_validation(csv_path):
     """Prepare a balanced validation set from the original data"""
@@ -88,7 +82,6 @@ def prepare_balanced_validation(csv_path):
     
     return temp_csv_path
 
-
 def calculate_auc(predictions, targets, mask=None):
     """Calculate AUC score for binary classification"""
     if mask is not None:
@@ -107,8 +100,6 @@ def calculate_auc(predictions, targets, mask=None):
     except:
         return float('nan')
 
-
-# Metrics logger for tracking training progress
 class MetricsLogger:
     def __init__(self, rank: int, metrics_dir: str = None):
         self.rank = rank
@@ -144,7 +135,6 @@ class MetricsLogger:
                 f.write(json.dumps(metrics_dict) + '\n')
         except Exception as e:
             print(f"ERROR saving metrics: {e}")
-
 
 class MetricsCalculator:
     def __init__(self):
@@ -208,52 +198,6 @@ class MetricsCalculator:
         }
         return metrics
 
-# ===================== End of added utility functions =====================
-
-# class CombinedModel(nn.Module):
-#     def __init__(
-#         self,
-#         base_model,
-#         chunk_feat_dim=768,
-#         hidden_dim=1024,
-#         num_tasks=1,
-#         num_attn_heads=8,
-#         num_layers=2,
-#         dropout_rate=0.2,
-#         lse_tau=1.0, #As τ→0 this approaches hard‐max over chunks; with larger τ it's smoother.
-#     ):
-#         super().__init__()
-#         self.base = base_model
-#         self.lse_tau = lse_tau
-        
-#         encoder_layer = nn.TransformerEncoderLayer(
-#             d_model=chunk_feat_dim,
-#             nhead=num_attn_heads,
-#             dim_feedforward=hidden_dim,
-#             dropout=dropout_rate,
-#             batch_first=True,
-#         )
-#         self.transformer = nn.TransformerEncoder(
-#             encoder_layer, 
-#             num_layers=num_layers)
-#         self.classifier = nn.Linear(chunk_feat_dim, num_tasks)
-        
-#     def forward(self, x, spacing=None):  # x: [S, C, H, W] - Input chunks, spacing: (dx, dy, dz)
-#         batch_size = 1  # Assume batch_size is always 1 (per-patient processing)
-#         num_chunks = x.size(0)
-#         features = []
-#         for i in range(num_chunks):
-#             with torch.no_grad():  # Frozen backbone by default
-#                 chunk_feat = self.base(x[i].unsqueeze(0))  # chunk_feat: [1, D] - Per-chunk embedding
-#             features.append(chunk_feat)  # list of S tensors, each [1, D]
-        
-#         features = torch.cat(features, dim=0)  # features: [S, D] - Stacked chunk embeddings
-#         aggregated = self.transformer(features.unsqueeze(0))  # aggregated: [1, S, D] - Transformer-encoded sequence
-#         pooled = torch.mean(aggregated, dim=1)  # pooled: [1, D] - Global average over S chunks
-#         #pooled = self.lse_tau * torch.logsumexp(aggregated / self.lse_tau, dim=1)
-#         outputs = self.classifier(pooled)  # outputs: [1, num_tasks] - Final predictions
-#         return outputs
-    
 class CombinedModel(nn.Module):
     def __init__(
         self,
@@ -370,7 +314,6 @@ class VolumeProcessor:
         chunks = self._get_chunks(volume)
         return chunks
 
-
 augment_3_channel = T.Compose([
     T.RandomHorizontalFlip(),
     T.RandomVerticalFlip(),
@@ -428,298 +371,6 @@ class NLSTDataset(Dataset):
         labels = row[self.labels].to_numpy(dtype=np.float32)  # Shape: [num_labels] (e.g., [3] for 3 time points)
         mask = (labels != -1)  # Shape: [num_labels] boolean mask
         return chunks, labels, mask, spacing  # Return shapes: [num_chunks, chunk_depth, 448, 448], [num_labels], [num_labels], (dx, dy, dz)
-
-class Trainer:
-    def __init__(
-        self,
-        model: nn.Module,
-        optimizer: torch.optim.Optimizer,
-        criterion: nn.Module,
-        device: torch.device,
-        accum_steps: int = 10,
-        print_every: int = 100,
-        val_every: int = 500,
-        metrics_dir: str = None
-    ):
-        self.model = model
-        self.opt = optimizer
-        self.crit = criterion
-        self.device = device
-        self.accum = accum_steps
-        self.print_every = print_every
-        self.val_every = val_every
-        self.global_step = 1
-        
-        # Set up metrics logging if directory is provided
-        if metrics_dir:
-            self.metrics_dir = metrics_dir
-            os.makedirs(metrics_dir, exist_ok=True)
-            
-            # Create filename with timestamp
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            self.metrics_filename = os.path.join(
-                metrics_dir, 
-                f"training_metrics_nGPU_A100_{timestamp}.jsonl"
-            )
-    
-    def _train_step(self, chunks, labels, mask, spacing):
-        """Training step for one patient (with all chunks)"""
-        running_loss = 0.0
-        
-        # Move chunks to device
-        chunks = chunks.to(self.device)  # [N, 3, H, W]
-        
-        # Process all chunks with the base model
-        features = []
-        for i in range(chunks.size(0)):
-            # Get CLS token embedding for this chunk
-            chunk_feat = self.model.base(chunks[i].unsqueeze(0))
-            features.append(chunk_feat)
-        
-        # Stack features from all chunks [num_chunks, feat_dim]
-        features = torch.cat(features, dim=0)
-        
-        # Apply transformer to aggregate chunk features
-        aggregated = self.model.transformer(features.unsqueeze(0))  # [1, num_chunks, feat_dim]
-        
-        # Global average pooling across chunks
-        pooled = torch.mean(aggregated, dim=1)  # [1, feat_dim]
-        
-        # Apply the classifier to get outputs for each task
-        logits = self.model.classifier(pooled)  # [1, num_tasks]
-        
-        # Convert NumPy arrays to PyTorch tensors
-        target = torch.tensor(labels, dtype=torch.float32, device=self.device)
-        mask_tensor = torch.tensor(mask, dtype=torch.bool, device=self.device)
-        
-        # Apply binary cross entropy to each task output
-        loss = 0.0
-        for i in range(logits.size(1)):
-            if mask_tensor[i]:  # Only calculate loss for non-missing values
-                task_loss = self.crit(logits[0, i:i+1], target[i:i+1])
-                loss += task_loss
-                running_loss += task_loss.item()
-        
-        # Normalize loss by number of active tasks
-        active_tasks = mask_tensor.sum().item()
-        if active_tasks > 0:
-            loss = loss / active_tasks
-            
-        # Gradient accumulation
-        loss = loss / self.accum
-        loss.backward()
-        
-        # Only update weights after accumulating enough gradients
-        if (self.global_step) % self.accum == 0:
-            self.opt.step()
-            self.opt.zero_grad()
-        
-        if (self.global_step) % self.print_every == 0:
-            print(f"Step {self.global_step} | Loss: {loss.item():.6f}")
-        
-        self.global_step += 1
-        return running_loss / max(1, active_tasks)
-    
-    def evaluate(self, val_loader):
-        """Evaluate model on validation set"""
-        self.model.eval()
-        all_preds = []
-        all_targets = []
-        all_masks = []
-        
-        with torch.no_grad():
-            for chunks, labels, mask, spacing in val_loader:
-                chunks = chunks.to(self.device)
-                
-                # Process all chunks with the base model
-                features = []
-                for i in range(chunks.size(0)):
-                    # Get CLS token embedding for this chunk
-                    chunk_feat = self.model.base(chunks[i].unsqueeze(0))
-                    features.append(chunk_feat)
-                
-                # Stack features from all chunks [num_chunks, feat_dim]
-                features = torch.cat(features, dim=0)
-                
-                # Apply transformer to aggregate chunk features
-                aggregated = self.model.transformer(features.unsqueeze(0))  # [1, num_chunks, feat_dim]
-                
-                # Global average pooling across chunks
-                pooled = torch.mean(aggregated, dim=1)  # [1, feat_dim]
-                
-                # Apply the classifier to get outputs for each task
-                logits = self.model.classifier(pooled)  # [1, num_tasks]
-                
-                # Convert to float32 before going to CPU and numpy
-                logits = logits.float()
-                
-                # Store predictions and targets
-                all_preds.append(logits.cpu().numpy())
-                all_targets.append(labels)
-                all_masks.append(mask)
-        
-        # Calculate metrics for each task using scikit-learn
-        metrics = {}
-        
-        # Combine all predictions and targets
-        preds = np.vstack(all_preds)
-        targets = np.vstack(all_targets)
-        masks = np.vstack(all_masks)
-        
-        # For each task, calculate metrics if data available
-        for i in range(preds.shape[1]):
-            if i >= masks.shape[1]:
-                continue
-                
-            # Get valid indices for this task
-            valid_idx = masks[:, i].astype(bool)
-            
-            if np.sum(valid_idx) > 0:
-                task_preds = preds[valid_idx, i]
-                task_targets = targets[valid_idx, i]
-                
-                # Calculate AUC
-                try:
-                    auc = roc_auc_score(task_targets, task_preds)
-                    metrics[f'auc_task{i}'] = auc
-                except:
-                    metrics[f'auc_task{i}'] = float('nan')
-        
-        # Special handling for 6-year cancer prediction
-        six_year_idx = 2  # Index 2 corresponds to '6-year-cancer'
-        if six_year_idx < masks.shape[1] and np.any(masks[:, six_year_idx]):
-            valid_idx = masks[:, six_year_idx].astype(bool)
-            six_year_preds = preds[valid_idx, six_year_idx]
-            six_year_targets = targets[valid_idx, six_year_idx]
-            
-            try:
-                auc = roc_auc_score(six_year_targets, six_year_preds)
-                metrics['auc_6year'] = auc
-            except:
-                metrics['auc_6year'] = float('nan')
-        
-        return metrics
-    
-    def save_metric_update(self, metrics_dict, metrics_type="train"):
-        """Save training/validation metrics to JSONL file"""
-        if not hasattr(self, 'metrics_filename'):
-            return
-        
-        # Add type to metrics
-        metrics_dict["type"] = metrics_type
-        
-        # Write to file as a single line
-        with open(self.metrics_filename, 'a') as f:
-            f.write(json.dumps(metrics_dict) + '\n')
-    
-    def fit(self, 
-            train_loader: DataLoader,
-            val_loader: DataLoader = None,
-            epochs: int = 10,
-            unfreeze_strategy: str = 'gradual'):
-        """Train the model for the specified number of epochs"""
-        for epoch in range(epochs):
-            # Implement gradual unfreezing strategy
-            if unfreeze_strategy == 'gradual':
-                if epoch == 0:
-                    print("Freezing base model")
-                    self.model.freeze_base_model()
-                elif epoch == 1:
-                    print("Unfreezing last 2 blocks")
-                    self.model.unfreeze_last_n_blocks(n=2)
-                elif epoch == 2:
-                    print("Unfreezing last 4 blocks")
-                    self.model.unfreeze_last_n_blocks(n=4)
-                elif epoch == 3:
-                    print("Unfreezing last 6 blocks")
-                    self.model.unfreeze_last_n_blocks(n=6)
-                elif epoch >= 4:
-                    print("Unfreezing entire base model")
-                    self.model.unfreeze_base_model()
-            elif unfreeze_strategy == 'none':
-                print("Using frozen base model for all epochs")
-                self.model.freeze_base_model()
-            elif unfreeze_strategy == 'all':
-                print("Using unfrozen base model for all epochs")
-                self.model.unfreeze_base_model()
-            
-            # Train loop
-            self.model.train()
-            epoch_loss = 0.0
-            samples_seen = 0
-            
-            for chunks, labels, mask, spacing in train_loader:
-                step_loss = self._train_step(chunks, labels, mask, spacing)
-                epoch_loss += step_loss
-                samples_seen += 1
-                
-                # Save training metrics periodically
-                if (self.global_step) % self.print_every == 0 and hasattr(self, 'metrics_filename'):
-                    # Create metrics dict
-                    metrics_dict = {
-                        "iteration": self.global_step,
-                        "epoch": epoch,
-                        "lr": self.opt.param_groups[0]['lr'],
-                        "accumulation_step": (self.global_step - 1) % self.accum,
-                        "accum_size": self.accum,
-                        "total_loss": step_loss,
-                        "acc1": 0.0,  # Would need predictions for accurate metrics
-                        "acc3": 0.0,
-                        "acc6": 0.0,
-                        "pos_count_1yr": "N/A",
-                        "pos_count_3yr": "N/A",
-                        "pos_count_6yr": "N/A"
-                    }
-                    
-                    # Save metrics
-                    self.save_metric_update(metrics_dict, "train")
-                
-                # Evaluate on validation set periodically
-                if val_loader and self.global_step % self.val_every == 0:
-                    self.model.eval()
-                    metrics = self.evaluate(val_loader)
-                    print(f"Validation | ", end="")
-                    for k, v in metrics.items():
-                        print(f"{k}: {v:.4f} | ", end="")
-                    print()
-                    
-                    # Save validation metrics
-                    if hasattr(self, 'metrics_filename'):
-                        # Create metrics dict for validation
-                        val_metrics = {
-                            "iteration": self.global_step,
-                            "epoch": epoch,
-                            "lr": self.opt.param_groups[0]['lr'],
-                            "accumulation_step": (self.global_step - 1) % self.accum,
-                            "accum_size": self.accum,
-                            "total_loss": 0.0,  # Would need validation loss
-                            "acc1": metrics.get("auc_task0", 0.0),
-                            "acc3": metrics.get("auc_task1", 0.0),
-                            "acc6": metrics.get("auc_task2", 0.0) if "auc_task2" in metrics else metrics.get("auc_6year", 0.0),
-                            "pos_count_1yr": "N/A",
-                            "pos_count_3yr": "N/A",
-                            "pos_count_6yr": "N/A"
-                        }
-                        
-                        # Save validation metrics
-                        self.save_metric_update(val_metrics, "validation")
-                    
-                    self.model.train()
-            
-            # End of epoch
-            avg_epoch_loss = epoch_loss / samples_seen
-            print(f"Epoch {epoch+1}/{epochs} | Avg Loss: {avg_epoch_loss:.6f}")
-            
-            # End of epoch validation
-            if val_loader:
-                self.model.eval()
-                metrics = self.evaluate(val_loader)
-                print(f"Epoch {epoch+1} Validation | ", end="")
-                for k, v in metrics.items():
-                    print(f"{k}: {v:.4f} | ", end="")
-                print()
-                self.model.train()
-
 
 def calculate_class_weights(df, label_cols):
     """Calculate class weights for imbalanced binary labels (only 0 vs 1, ignore -1)."""
@@ -842,56 +493,6 @@ def analyze_datasets(csv_path, label_cols):
         print(f"Error analyzing datasets: {e}")
         import traceback
         traceback.print_exc()
-
-def main(args):
-    # ------------------------------------------------------------------
-    # 1. DDP initialization (torchrun sets RANK, WORLD_SIZE, LOCAL_RANK)
-    # ------------------------------------------------------------------
-    dist.init_process_group(backend="nccl")
-    local_rank = int(os.environ["LOCAL_RANK"])
-    world_size = dist.get_world_size()
-    global_rank = dist.get_rank()
-    torch.cuda.set_device(local_rank)
-    
-    # convenience so you can still run the script on one GPU
-    if world_size == 1:
-        print("Single-GPU run – DDP will run on one device")
-    
-    # Only rank 0 should log preparation information
-    if global_rank == 0:
-        logging.basicConfig(
-            level=logging.INFO, 
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.StreamHandler(),
-                logging.FileHandler(os.path.join(args.output, 'training.log'))
-            ]
-        )
-        logging.info(f"Starting training on {world_size} GPUs with full model copies (DDP)")
-        
-        # Prepare balanced validation dataset if needed
-        if args.balance_val:
-            csv_path = prepare_balanced_validation(args.csv)
-        else:
-            csv_path = args.csv
-            
-        # Analyze datasets and print statistics
-        from model_utils import analyze_datasets
-        
-        # Define the label columns to use for prediction
-        label_cols = ['1-year-cancer', '2-year-cancer', '3-year-cancer', 
-                     '4-year-cancer', '5-year-cancer', '6-year-cancer']
-                     
-        analyze_datasets(csv_path, label_cols)
-    else:
-        # Set up minimal logging for non-zero ranks
-        logging.basicConfig(level=logging.WARNING)
-        csv_path = args.csv
-    
-    # Make sure all processes wait until rank 0 has prepared the CSV
-    dist.barrier()
-    
-    # Rest of your code...
 
 class ModelSaver:
     """
@@ -1048,9 +649,6 @@ class ModelSaver:
         with open(os.path.join(self.checkpoint_dir, metadata_filename), 'w') as f:
             json.dump(metadata, f, indent=2)
 
-
-
-
 def _latest(path, pat=r"model_epoch_(\d+)\.pt"):
     files = [f for f in os.listdir(path) if re.match(pat, f)]
     if not files: return None
@@ -1071,3 +669,56 @@ def load_latest_checkpoint(model, out_dir, device="cpu", rank=0):
     tgt = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
     tgt.load_state_dict(sd["model"] if isinstance(sd, dict) and "model" in sd else sd, strict=False)
     return epoch        # caller can log/decide what to do next
+
+def make_balanced_sampler(dataset, label_col="1-year-cancer"):
+    """
+    Returns a WeightedRandomSampler that draws 0 / 1 for `label_col`
+    with equal chance.  -1 rows are ignored.  Works on a DataFrame
+    or on an NLSTDataset (uses its .df).
+    """
+    df = dataset.df if hasattr(dataset, "df") else dataset           # ①
+    msk = df[label_col] != -1                                        # valid rows
+    y   = df.loc[msk, label_col].to_numpy()
+    n0, n1 = (y == 0).sum(), (y == 1).sum()
+    w0, w1 = 1.0 / n0, 1.0 / n1                                      # ②
+    weights = np.zeros(len(df), dtype=np.float32)
+    weights[msk] = np.where(y == 1, w1, w0)                          # ③
+    return WeightedRandomSampler(weights, num_samples=len(df), replacement=True)
+
+def print_training_dataset_stats(csv_path, label_cols):
+    """
+    Print basic dataset statistics for training script.
+    
+    Args:
+        csv_path (str): Path to the CSV file
+        label_cols (List[str]): List of column names for prediction tasks
+    """
+    try:
+        # Load the full dataframe
+        full_df = pd.read_csv(csv_path)
+        train_df = full_df[full_df['split'] == 'train']
+        val_df_stats = full_df[full_df['split'] == 'val']
+        
+        print("\n==== Dataset Statistics ====")
+        print(f"Total samples: {len(full_df)}")
+        print(f"Training samples: {len(train_df)}")
+        print(f"Validation samples: {len(val_df_stats)}")
+        
+        # Print class distribution for each label column
+        for col in label_cols:
+            if col in train_df.columns:
+                # Use basic sum() to count positive samples
+                pos_train = sum(train_df[col] == 1)
+                pos_val = sum(val_df_stats[col] == 1)
+                
+                # Calculate percentages
+                train_pct = 100 * pos_train / len(train_df) if len(train_df) > 0 else 0
+                val_pct = 100 * pos_val / len(val_df_stats) if len(val_df_stats) > 0 else 0
+                
+                print(f"\n{col}:")
+                print(f"  Train positive: {pos_train} ({train_pct:.2f}%)")
+                print(f"  Val positive: {pos_val} ({val_pct:.2f}%)")
+        print("============================\n")
+        
+    except Exception as e:
+        print(f"Error printing dataset statistics: {e}")
