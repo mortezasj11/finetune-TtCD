@@ -14,6 +14,7 @@ from sklearn.metrics import roc_auc_score
 import sys
 import time
 import json
+import math
 
 # Import utilities from local model_utils.py file
 from model_utils import (
@@ -145,7 +146,7 @@ class DDPFullTrainer:
             self.model,
             device_ids=[self.args.local_rank],
             output_device=self.args.local_rank,
-            find_unused_parameters=True
+            find_unused_parameters=False
         )
         self.start_epoch = load_latest_checkpoint(self.model,               # ❷
                                           self.args.output,
@@ -270,12 +271,12 @@ class DDPFullTrainer:
             self.scaler.step(self.optimizer)
             self.scaler.update()
             self.optimizer.zero_grad(set_to_none=True)  # More efficient than zero_grad()
-            self.scheduler.step()  # Moved inside the accumulation block
+            #self.scheduler.step()  # Moved inside the accumulation block
             
             # Print learning rate after first real step
             if self.global_step == self.args.accum_steps and self.args.rank == 0:
                 print("First real step → LR", self.scheduler.get_last_lr())
-        
+        self.scheduler.step()  # Moved inside the accumulation block
         # Update running metrics for accuracy tracking
         with torch.no_grad():
             for j in range(logits.size(1)):
@@ -568,7 +569,7 @@ class DDPFullTrainer:
         self.current_epoch = 0
         self.train_loader = train_loader  # Store for scheduler initialization
         
-        # Initialize scheduler now that we have access to the dataloader
+        #Initialize scheduler now that we have access to the dataloader
         total_steps = len(train_loader) * epochs
         warmup_steps = self.args.warmup_steps
         
@@ -580,7 +581,34 @@ class DDPFullTrainer:
             div_factor=25.0,  # Initial lr = max_lr/25
             final_div_factor=1000.0  # Final lr = initial_lr/1000
         )
-        
+
+
+        # optim_steps_per_epoch = math.ceil(len(train_loader) / args.accum_steps)
+        # total_optim_steps     = optim_steps_per_epoch * epochs
+        # warmup_steps          = args.warmup_steps       # keep the same absolute number
+
+        # self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        #         self.optimizer,
+        #         max_lr=[args.lr * 0.1, args.lr],
+        #         total_steps=total_optim_steps,
+        #         pct_start   = warmup_steps / total_optim_steps,
+        #         div_factor        = 25.0,
+        #         final_div_factor  = 1000.0
+        # )
+            # -----------------------------------------------------------
+
+
+
+
+
+
+        #  ▸ initialise timers
+        # -----------------------------------------------------------
+        self._last_batch_end = time.time()
+        self.fetch_avg   = 0.0
+        self.compute_avg = 0.0
+        beta = 0.98                   # EWMA smoothing factor
+        # -----------------------------------------------------------
         for epoch in range(epochs):
             self.current_epoch = epoch
             self.metrics_calculator.reset()
@@ -599,13 +627,32 @@ class DDPFullTrainer:
             
             for step, (chunks, labels, mask, spacing) in enumerate(train_loader, 1):
                 # Training step (no try/except)
+                t_fetch_start = time.time()                  # right AFTER batch is yielded
+                fetch_ms = (t_fetch_start - self._last_batch_end) * 1000
+
+                self.fetch_avg = beta * self.fetch_avg + (1.0 - beta) * fetch_ms
+                t_compute_start = time.time()
+
+
                 step_metrics = self._train_step(chunks, labels, mask, spacing)
+
+                compute_ms = (time.time() - t_compute_start) * 1000
+                self.compute_avg = beta * self.compute_avg + (1.0 - beta) * compute_ms
+                self._last_batch_end = time.time()
                 
                 # Print training metrics every print_every steps
                 if step_metrics and self.args.rank == 0 and self.global_step % self.args.print_every == 0:
-                    print(f"\nStep {self.global_step} (Epoch {epoch+1}):")
+                    #print(f"\nStep {self.global_step} (Epoch {epoch+1}):")
+                    print(f"\nStep {self.global_step} (Epoch {self.current_epoch+1}):")
                     print(f"Loss: {step_metrics['loss']:.4f}")
                     print(f"Learning rate: {step_metrics['lr']:.6f}")
+
+                    print(f"\nStep {self.global_step:>7}  "
+                        f"Ep {self.current_epoch+1:02d}  "
+                        f"loss {step_metrics['loss']:.4f}  "
+                        f"lr {step_metrics['lr']:.6f}  "
+                        f"fetch {self.fetch_avg:6.1f} ms  "
+                        f"compute {self.compute_avg:6.1f} ms")
                     
                     # Print running accuracy, sensitivity, and specificity
                     acc_string  = "Accuracy:     "
@@ -657,6 +704,13 @@ class DDPFullTrainer:
                     # Log metrics
                     self.metrics_logger.log_metrics(train_metrics)
                 
+
+                # one-off save at step 19 000
+                if self.args.rank == 0 and self.global_step == 19_000:              # NEW
+                    self.model_saver.save_checkpoint(self.model, epoch=epoch+19000,     # NEW
+                                                    global_step=self.global_step)
+
+
                 self.global_step += 1
                 
                 # Validation - all ranks participate
@@ -889,7 +943,7 @@ def main(args):
         
     # Each rank gets a distinct shard; shuffle is done by the sampler
     train_sampler = torch.utils.data.distributed.DistributedSampler(
-        train_ds, num_replicas=world_size, rank=global_rank, shuffle=True
+        train_ds, num_replicas=world_size, rank=global_rank, shuffle=True, drop_last=True
     )
     
     train_loader = DataLoader(
@@ -1020,7 +1074,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=1, help='Batch size per GPU')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay')
-    parser.add_argument('--warmup_steps', type=int, default=5000, help='Warmup steps for learning rate scheduling')
+    parser.add_argument('--warmup_steps', type=int, default=100, help='Warmup steps for learning rate scheduling')
     parser.add_argument('--val_every', type=int, default=100, help='Validation frequency in steps')
     
     # Model parameters
@@ -1062,7 +1116,7 @@ if __name__ == "__main__":
                         help="Number of workers for data loading")
     parser.add_argument("--epochs", type=int, default=10, 
                         help="Number of epochs to train for")
-    parser.add_argument("--warmup-steps", type=int, default=1000,
+    parser.add_argument("--warmup-steps", type=int, default=100,
                         help="Number of warmup steps for learning rate scheduling")
     parser.add_argument("--lr", type=float, default=1e-4, 
                         help="Learning rate")

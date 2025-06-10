@@ -1,0 +1,236 @@
+2025-06-07 21:39:16,948 - INFO - Starting training on 1 GPUs with full model copies (DDP)
+2025-06-07 21:39:18,512 - INFO - using MLP layer as FFN
+2025-06-07 21:39:24,018 - INFO - ------ Training Configuration ------
+2025-06-07 21:39:24,018 - INFO - Max chunks per sample         : 72
+2025-06-07 21:39:24,018 - INFO - Learning rate (aggregator)    : 4e-05
+2025-06-07 21:39:24,018 - INFO - Learning rate (base)          : 4.0000000000000003e-07
+2025-06-07 21:39:24,018 - INFO - Gradient accumulation steps   : 200
+2025-06-07 21:39:24,018 - INFO - Warm-up steps                 : 100
+2025-06-07 21:39:24,018 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-07 21:39:24,018 - INFO - Aggregator dropout            : 0.35
+2025-06-07 21:39:24,018 - INFO - Validation frequency          : 21000 steps
+2025-06-07 21:39:24,018 - INFO - Number of epochs              : 200
+2025-06-07 21:39:24,019 - INFO - World size                    : 1
+2025-06-07 21:39:24,019 - INFO - Device                        : cuda
+2025-06-07 21:39:24,019 - INFO - ------------------------------------
+
+2025-06-07 21:40:31,561 - INFO - Step      50  Ep 01  loss 1.3015  lr 0.000002  fetch  147.1 ms  compute  599.8 ms
+2025-06-07 21:40:31,565 - INFO - Accuracy:     T0:0.44  T1:0.46  T2:0.54  T3:0.43  T4:0.39  T5:0.76  
+2025-06-07 21:40:31,565 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.89  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 21:40:31,565 - INFO - Specificity:  T0:0.96  T1:1.00  T2:0.09  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 21:40:31,565 - INFO - iteration: 50 | epoch: 0 | loss: 1.3015 | lr: 0.0000 | type: training | acc_task0: 0.4400 | sens_task0: 0.0000 | spec_task0: 0.9565 | acc_task1: 0.4600 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5400 | sens_task2: 0.8929 | spec_task2: 0.0909 | acc_task3: 0.4286 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3913 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7568 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 21:41:22,655 - INFO - Step     100  Ep 01  loss 1.1904  lr 0.000002  fetch   54.2 ms  compute  875.3 ms
+2025-06-07 21:41:22,660 - INFO - Accuracy:     T0:0.48  T1:0.49  T2:0.55  T3:0.45  T4:0.40  T5:0.71  
+2025-06-07 21:41:22,660 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.92  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 21:41:22,660 - INFO - Specificity:  T0:0.98  T1:1.00  T2:0.11  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 21:41:22,660 - INFO - iteration: 100 | epoch: 0 | loss: 1.1904 | lr: 0.0000 | type: training | acc_task0: 0.4800 | sens_task0: 0.0000 | spec_task0: 0.9796 | acc_task1: 0.4900 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5510 | sens_task2: 0.9245 | spec_task2: 0.1111 | acc_task3: 0.4536 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3977 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7067 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 21:42:17,663 - INFO - Step     150  Ep 01  loss 0.7259  lr 0.000002  fetch  168.5 ms  compute  902.8 ms
+2025-06-07 21:42:17,667 - INFO - Accuracy:     T0:0.48  T1:0.49  T2:0.53  T3:0.46  T4:0.39  T5:0.72  
+2025-06-07 21:42:17,667 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.92  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 21:42:17,668 - INFO - Specificity:  T0:0.97  T1:1.00  T2:0.09  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 21:42:17,668 - INFO - iteration: 150 | epoch: 0 | loss: 0.7259 | lr: 0.0000 | type: training | acc_task0: 0.4800 | sens_task0: 0.0000 | spec_task0: 0.9730 | acc_task1: 0.4933 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5338 | sens_task2: 0.9241 | spec_task2: 0.0870 | acc_task3: 0.4626 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3939 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7207 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 21:46:30,090 - INFO - Step     200  Ep 01  loss 0.6474  lr 0.000002  fetch 3060.6 ms  compute  907.6 ms
+2025-06-07 21:46:30,093 - INFO - Accuracy:     T0:0.47  T1:0.47  T2:0.54  T3:0.44  T4:0.38  T5:0.74  
+2025-06-07 21:46:30,093 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.93  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 21:46:30,093 - INFO - Specificity:  T0:0.98  T1:1.00  T2:0.07  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 21:46:30,094 - INFO - iteration: 200 | epoch: 0 | loss: 0.6474 | lr: 0.0000 | type: training | acc_task0: 0.4700 | sens_task0: 0.0000 | spec_task0: 0.9792 | acc_task1: 0.4724 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5381 | sens_task2: 0.9259 | spec_task2: 0.0674 | acc_task3: 0.4433 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3771 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7365 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 21:47:15,020 - INFO - Step     250  Ep 01  loss 0.6818  lr 0.000002  fetch 1115.0 ms  compute  887.3 ms
+2025-06-07 21:47:15,022 - INFO - Accuracy:     T0:0.51  T1:0.51  T2:0.50  T3:0.48  T4:0.41  T5:0.71  
+2025-06-07 21:47:15,022 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.93  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 21:47:15,022 - INFO - Specificity:  T0:0.98  T1:1.00  T2:0.07  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 21:47:15,022 - INFO - iteration: 250 | epoch: 0 | loss: 0.6818 | lr: 0.0000 | type: training | acc_task0: 0.5080 | sens_task0: 0.0000 | spec_task0: 0.9845 | acc_task1: 0.5100 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5041 | sens_task2: 0.9280 | spec_task2: 0.0661 | acc_task3: 0.4813 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.4085 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7119 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 21:47:58,845 - INFO - Step     300  Ep 01  loss 1.0635  lr 0.000002  fetch  406.4 ms  compute  880.8 ms
+2025-06-07 21:47:58,846 - INFO - Accuracy:     T0:0.52  T1:0.52  T2:0.50  T3:0.50  T4:0.43  T5:0.69  
+2025-06-07 21:47:58,847 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.92  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 21:47:58,847 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.08  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 21:47:58,847 - INFO - iteration: 300 | epoch: 0 | loss: 1.0635 | lr: 0.0000 | type: training | acc_task0: 0.5200 | sens_task0: 0.0000 | spec_task0: 0.9873 | acc_task1: 0.5201 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.4983 | sens_task2: 0.9247 | spec_task2: 0.0805 | acc_task3: 0.4966 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.4302 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.6934 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 21:53:11,667 - INFO - Step     350  Ep 01  loss 1.1682  lr 0.000002  fetch 3435.2 ms  compute  962.6 ms
+2025-06-07 21:53:11,668 - INFO - Accuracy:     T0:0.50  T1:0.50  T2:0.51  T3:0.48  T4:0.41  T5:0.71  
+2025-06-07 21:53:11,668 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.92  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 21:53:11,668 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.08  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 21:53:11,668 - INFO - iteration: 350 | epoch: 0 | loss: 1.1682 | lr: 0.0000 | type: training | acc_task0: 0.5000 | sens_task0: 0.0000 | spec_task0: 0.9887 | acc_task1: 0.5000 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5145 | sens_task2: 0.9209 | spec_task2: 0.0838 | acc_task3: 0.4763 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.4106 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7149 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 22:01:14,536 - INFO - Step     400  Ep 01  loss 0.7071  lr 0.000002  fetch 6188.2 ms  compute  966.9 ms
+2025-06-07 22:01:14,541 - INFO - Accuracy:     T0:0.47  T1:0.47  T2:0.53  T3:0.45  T4:0.39  T5:0.74  
+2025-06-07 22:01:14,541 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.92  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 22:01:14,542 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.08  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 22:01:14,542 - INFO - iteration: 400 | epoch: 0 | loss: 0.7071 | lr: 0.0000 | type: training | acc_task0: 0.4725 | sens_task0: 0.0000 | spec_task0: 0.9895 | acc_task1: 0.4724 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5344 | sens_task2: 0.9202 | spec_task2: 0.0778 | acc_task3: 0.4496 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3851 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7354 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 22:02:28,983 - INFO - Step     450  Ep 01  loss 1.1409  lr 0.000002  fetch 2528.8 ms  compute  873.1 ms
+2025-06-07 22:02:28,986 - INFO - Accuracy:     T0:0.48  T1:0.48  T2:0.53  T3:0.45  T4:0.38  T5:0.74  
+2025-06-07 22:02:28,986 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.92  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 22:02:28,987 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.07  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 22:02:28,987 - INFO - iteration: 450 | epoch: 0 | loss: 1.1409 | lr: 0.0000 | type: training | acc_task0: 0.4822 | sens_task0: 0.0043 | spec_task0: 0.9908 | acc_task1: 0.4777 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5306 | sens_task2: 0.9244 | spec_task2: 0.0690 | acc_task3: 0.4529 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3840 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7354 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 22:07:19,265 - INFO - Step     500  Ep 01  loss 0.4141  lr 0.000002  fetch 2949.2 ms  compute  871.6 ms
+2025-06-07 22:07:19,268 - INFO - Accuracy:     T0:0.49  T1:0.49  T2:0.51  T3:0.46  T4:0.39  T5:0.73  
+2025-06-07 22:07:19,268 - INFO - Sensitivity:  T0:0.00  T1:0.00  T2:0.91  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 22:07:19,268 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.06  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 22:07:19,268 - INFO - iteration: 500 | epoch: 0 | loss: 0.4141 | lr: 0.0000 | type: training | acc_task0: 0.4920 | sens_task0: 0.0040 | spec_task0: 0.9919 | acc_task1: 0.4869 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5082 | sens_task2: 0.9073 | spec_task2: 0.0606 | acc_task3: 0.4606 | sens_task3: 0.0000 | spec_task3: 0.9955 | acc_task4: 0.3939 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7303 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 22:08:15,925 - INFO - Step     550  Ep 01  loss 1.1631  lr 0.000002  fetch 1204.2 ms  compute  868.8 ms
+2025-06-07 22:08:15,928 - INFO - Accuracy:     T0:0.50  T1:0.49  T2:0.51  T3:0.46  T4:0.40  T5:0.73  
+2025-06-07 22:08:15,928 - INFO - Sensitivity:  T0:0.01  T1:0.00  T2:0.91  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 22:08:15,928 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.06  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 22:08:15,928 - INFO - iteration: 550 | epoch: 0 | loss: 1.1631 | lr: 0.0000 | type: training | acc_task0: 0.4964 | sens_task0: 0.0072 | spec_task0: 0.9927 | acc_task1: 0.4881 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5074 | sens_task2: 0.9085 | spec_task2: 0.0625 | acc_task3: 0.4633 | sens_task3: 0.0000 | spec_task3: 0.9960 | acc_task4: 0.3992 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7296 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 22:08:58,700 - INFO - Step     600  Ep 01  loss 0.6963  lr 0.000002  fetch  439.0 ms  compute  860.5 ms
+2025-06-07 22:08:58,708 - INFO - Accuracy:     T0:0.50  T1:0.49  T2:0.51  T3:0.46  T4:0.40  T5:0.73  
+2025-06-07 22:08:58,708 - INFO - Sensitivity:  T0:0.01  T1:0.00  T2:0.91  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 22:08:58,708 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.06  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 22:08:58,708 - INFO - iteration: 600 | epoch: 0 | loss: 0.6963 | lr: 0.0000 | type: training | acc_task0: 0.4967 | sens_task0: 0.0066 | spec_task0: 0.9933 | acc_task1: 0.4891 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5085 | sens_task2: 0.9100 | spec_task2: 0.0609 | acc_task3: 0.4603 | sens_task3: 0.0000 | spec_task3: 0.9963 | acc_task4: 0.3973 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7269 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 22:09:41,384 - INFO - Step     650  Ep 01  loss 1.2349  lr 0.000002  fetch  160.3 ms  compute  851.8 ms
+2025-06-07 22:09:41,387 - INFO - Accuracy:     T0:0.49  T1:0.49  T2:0.51  T3:0.46  T4:0.39  T5:0.73  
+2025-06-07 22:09:41,387 - INFO - Sensitivity:  T0:0.01  T1:0.00  T2:0.91  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 22:09:41,387 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.06  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 22:09:41,388 - INFO - iteration: 650 | epoch: 0 | loss: 1.2349 | lr: 0.0000 | type: training | acc_task0: 0.4938 | sens_task0: 0.0061 | spec_task0: 0.9938 | acc_task1: 0.4869 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5078 | sens_task2: 0.9112 | spec_task2: 0.0563 | acc_task3: 0.4603 | sens_task3: 0.0000 | spec_task3: 0.9966 | acc_task4: 0.3947 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7308 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 22:10:24,479 - INFO - Step     700  Ep 01  loss 0.3120  lr 0.000002  fetch   84.1 ms  compute  841.1 ms
+2025-06-07 22:10:24,483 - INFO - Accuracy:     T0:0.49  T1:0.48  T2:0.51  T3:0.46  T4:0.39  T5:0.74  
+2025-06-07 22:10:24,484 - INFO - Sensitivity:  T0:0.01  T1:0.00  T2:0.91  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 22:10:24,484 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.06  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 22:10:24,484 - INFO - iteration: 700 | epoch: 0 | loss: 0.3120 | lr: 0.0000 | type: training | acc_task0: 0.4929 | sens_task0: 0.0056 | spec_task0: 0.9942 | acc_task1: 0.4842 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5116 | sens_task2: 0.9096 | spec_task2: 0.0619 | acc_task3: 0.4563 | sens_task3: 0.0000 | spec_task3: 0.9968 | acc_task4: 0.3911 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7365 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 22:11:14,140 - INFO - Step     750  Ep 01  loss 0.3346  lr 0.000002  fetch   85.0 ms  compute  855.8 ms
+2025-06-07 22:11:14,142 - INFO - Accuracy:     T0:0.49  T1:0.48  T2:0.51  T3:0.46  T4:0.39  T5:0.73  
+2025-06-07 22:11:14,142 - INFO - Sensitivity:  T0:0.01  T1:0.00  T2:0.91  T3:0.00  T4:0.00  T5:1.00  
+2025-06-07 22:11:14,143 - INFO - Specificity:  T0:0.99  T1:1.00  T2:0.06  T3:1.00  T4:1.00  T5:0.00  
+2025-06-07 22:11:14,143 - INFO - iteration: 750 | epoch: 0 | loss: 0.3346 | lr: 0.0000 | type: training | acc_task0: 0.4920 | sens_task0: 0.0052 | spec_task0: 0.9946 | acc_task1: 0.4839 | sens_task1: 0.0000 | spec_task1: 1.0000 | acc_task2: 0.5108 | sens_task2: 0.9130 | spec_task2: 0.0576 | acc_task3: 0.4572 | sens_task3: 0.0000 | spec_task3: 0.9970 | acc_task4: 0.3923 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.7328 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 22:12:26,793 - INFO - Starting training on 1 GPUs with full model copies (DDP)
+2025-06-07 22:12:28,476 - INFO - using MLP layer as FFN
+2025-06-07 22:12:31,483 - INFO - ------ Training Configuration ------
+2025-06-07 22:12:31,483 - INFO - Max chunks per sample         : 72
+2025-06-07 22:12:31,483 - INFO - Learning rate (aggregator)    : 4e-05
+2025-06-07 22:12:31,484 - INFO - Learning rate (base)          : 4.0000000000000003e-07
+2025-06-07 22:12:31,484 - INFO - Gradient accumulation steps   : 200
+2025-06-07 22:12:31,484 - INFO - Warm-up steps                 : 100
+2025-06-07 22:12:31,484 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-07 22:12:31,484 - INFO - Aggregator dropout            : 0.35
+2025-06-07 22:12:31,484 - INFO - Validation frequency          : 40000 steps
+2025-06-07 22:12:31,484 - INFO - Number of epochs              : 200
+2025-06-07 22:12:31,484 - INFO - World size                    : 1
+2025-06-07 22:12:31,484 - INFO - Device                        : cuda
+2025-06-07 22:12:31,484 - INFO - ------------------------------------
+
+2025-06-08 00:44:02,872 - INFO - Starting training on 1 GPUs with full model copies (DDP)
+2025-06-08 00:44:04,485 - INFO - using MLP layer as FFN
+2025-06-08 00:44:08,334 - INFO - ------ Training Configuration ------
+2025-06-08 00:44:08,334 - INFO - Max chunks per sample         : 72
+2025-06-08 00:44:08,334 - INFO - Learning rate (aggregator)    : 8e-06
+2025-06-08 00:44:08,334 - INFO - Learning rate (base)          : 8e-08
+2025-06-08 00:44:08,334 - INFO - Gradient accumulation steps   : 200
+2025-06-08 00:44:08,334 - INFO - Warm-up steps                 : 100
+2025-06-08 00:44:08,334 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-08 00:44:08,334 - INFO - Aggregator dropout            : 0.35
+2025-06-08 00:44:08,334 - INFO - Validation frequency          : 40000 steps
+2025-06-08 00:44:08,334 - INFO - Number of epochs              : 200
+2025-06-08 00:44:08,334 - INFO - World size                    : 1
+2025-06-08 00:44:08,334 - INFO - Device                        : cuda
+2025-06-08 00:44:08,334 - INFO - ------------------------------------
+
+2025-06-08 01:18:17,026 - INFO - Starting training on 1 GPUs with full model copies (DDP)
+2025-06-08 01:18:18,799 - INFO - using MLP layer as FFN
+2025-06-08 01:18:21,650 - INFO - ------ Training Configuration ------
+2025-06-08 01:18:21,650 - INFO - Max chunks per sample         : 72
+2025-06-08 01:18:21,650 - INFO - Learning rate (aggregator)    : 8e-06
+2025-06-08 01:18:21,650 - INFO - Learning rate (base)          : 8e-08
+2025-06-08 01:18:21,650 - INFO - Gradient accumulation steps   : 200
+2025-06-08 01:18:21,650 - INFO - Warm-up steps                 : 100
+2025-06-08 01:18:21,651 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-08 01:18:21,651 - INFO - Aggregator dropout            : 0.35
+2025-06-08 01:18:21,651 - INFO - Validation frequency          : 40000 steps
+2025-06-08 01:18:21,651 - INFO - Number of epochs              : 200
+2025-06-08 01:18:21,651 - INFO - World size                    : 1
+2025-06-08 01:18:21,651 - INFO - Device                        : cuda
+2025-06-08 01:18:21,651 - INFO - ------------------------------------
+
+2025-06-08 05:44:27,337 - INFO - Step    5000  Ep 01  loss 2.4649  lr 0.000001  fetch 10250.0 ms  compute  925.3 ms
+2025-06-08 05:44:27,338 - INFO - Accuracy:     T0:0.50  T1:0.51  T2:0.48  T3:0.47  T4:0.60  T5:0.26  
+2025-06-08 05:44:27,338 - INFO - Sensitivity:  T0:0.33  T1:1.00  T2:0.00  T3:0.00  T4:1.00  T5:0.00  
+2025-06-08 05:44:27,339 - INFO - Specificity:  T0:0.66  T1:0.00  T2:1.00  T3:1.00  T4:0.00  T5:1.00  
+2025-06-08 05:44:27,339 - INFO - iteration: 5000 | epoch: 0 | loss: 2.4649 | lr: 0.0000 | type: training | acc_task0: 0.4968 | sens_task0: 0.3343 | spec_task0: 0.6579 | acc_task1: 0.5054 | sens_task1: 1.0000 | spec_task1: 0.0000 | acc_task2: 0.4848 | sens_task2: 0.0000 | spec_task2: 0.9979 | acc_task3: 0.4733 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.6037 | sens_task4: 1.0000 | spec_task4: 0.0000 | acc_task5: 0.2577 | sens_task5: 0.0000 | spec_task5: 1.0000
+2025-06-08 13:33:24,398 - INFO - Step   10000  Ep 01  loss 1.5123  lr 0.000004  fetch 7336.7 ms  compute 1054.6 ms
+2025-06-08 13:33:24,404 - INFO - Accuracy:     T0:0.49  T1:0.51  T2:0.48  T3:0.47  T4:0.61  T5:0.26  
+2025-06-08 13:33:24,404 - INFO - Sensitivity:  T0:0.34  T1:1.00  T2:0.00  T3:0.00  T4:1.00  T5:0.00  
+2025-06-08 13:33:24,404 - INFO - Specificity:  T0:0.65  T1:0.00  T2:1.00  T3:1.00  T4:0.00  T5:1.00  
+2025-06-08 13:33:24,404 - INFO - iteration: 10000 | epoch: 0 | loss: 1.5123 | lr: 0.0000 | type: training | acc_task0: 0.4916 | sens_task0: 0.3356 | spec_task0: 0.6478 | acc_task1: 0.5089 | sens_task1: 0.9996 | spec_task1: 0.0000 | acc_task2: 0.4793 | sens_task2: 0.0008 | spec_task2: 0.9968 | acc_task3: 0.4675 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.6096 | sens_task4: 1.0000 | spec_task4: 0.0000 | acc_task5: 0.2551 | sens_task5: 0.0000 | spec_task5: 1.0000
+2025-06-08 22:22:32,162 - INFO - Step   15000  Ep 01  loss 0.6697  lr 0.000007  fetch    0.6 ms  compute  858.6 ms
+2025-06-08 22:22:32,166 - INFO - Accuracy:     T0:0.50  T1:0.51  T2:0.48  T3:0.47  T4:0.61  T5:0.30  
+2025-06-08 22:22:32,167 - INFO - Sensitivity:  T0:0.26  T1:0.93  T2:0.02  T3:0.00  T4:1.00  T5:0.09  
+2025-06-08 22:22:32,167 - INFO - Specificity:  T0:0.73  T1:0.07  T2:0.99  T3:1.00  T4:0.00  T5:0.90  
+2025-06-08 22:22:32,167 - INFO - iteration: 15000 | epoch: 0 | loss: 0.6697 | lr: 0.0000 | type: training | acc_task0: 0.4962 | sens_task0: 0.2567 | spec_task0: 0.7347 | acc_task1: 0.5085 | sens_task1: 0.9322 | spec_task1: 0.0700 | acc_task2: 0.4823 | sens_task2: 0.0159 | spec_task2: 0.9857 | acc_task3: 0.4685 | sens_task3: 0.0031 | spec_task3: 0.9962 | acc_task4: 0.6081 | sens_task4: 0.9992 | spec_task4: 0.0024 | acc_task5: 0.2979 | sens_task5: 0.0893 | spec_task5: 0.8958
+2025-06-09 01:44:24,262 - INFO - Step   20000  Ep 01  loss 0.8296  lr 0.000008  fetch 10690.5 ms  compute 1083.2 ms
+2025-06-09 01:44:24,266 - INFO - Accuracy:     T0:0.50  T1:0.51  T2:0.48  T3:0.47  T4:0.60  T5:0.40  
+2025-06-09 01:44:24,266 - INFO - Sensitivity:  T0:0.20  T1:0.79  T2:0.06  T3:0.12  T4:0.97  T5:0.30  
+2025-06-09 01:44:24,266 - INFO - Specificity:  T0:0.79  T1:0.23  T2:0.94  T3:0.87  T4:0.03  T5:0.68  
+2025-06-09 01:44:24,266 - INFO - iteration: 20000 | epoch: 0 | loss: 0.8296 | lr: 0.0000 | type: training | acc_task0: 0.4994 | sens_task0: 0.2049 | spec_task0: 0.7930 | acc_task1: 0.5136 | sens_task1: 0.7879 | spec_task1: 0.2290 | acc_task2: 0.4839 | sens_task2: 0.0623 | spec_task2: 0.9398 | acc_task3: 0.4680 | sens_task3: 0.1166 | spec_task3: 0.8673 | acc_task4: 0.6015 | sens_task4: 0.9710 | spec_task4: 0.0318 | acc_task5: 0.4015 | sens_task5: 0.3049 | spec_task5: 0.6755
+2025-06-09 14:36:54,001 - INFO - Starting training on 1 GPUs with full model copies (DDP)
+2025-06-09 14:36:55,588 - INFO - using MLP layer as FFN
+2025-06-09 14:37:10,386 - INFO - ------ Training Configuration ------
+2025-06-09 14:37:10,386 - INFO - Max chunks per sample         : 72
+2025-06-09 14:37:10,386 - INFO - Learning rate (aggregator)    : 8e-06
+2025-06-09 14:37:10,386 - INFO - Learning rate (base)          : 8e-08
+2025-06-09 14:37:10,387 - INFO - Gradient accumulation steps   : 200
+2025-06-09 14:37:10,387 - INFO - Warm-up steps                 : 100
+2025-06-09 14:37:10,390 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-09 14:37:10,390 - INFO - Aggregator dropout            : 0.35
+2025-06-09 14:37:10,390 - INFO - Validation frequency          : 40000 steps
+2025-06-09 14:37:10,390 - INFO - Number of epochs              : 200
+2025-06-09 14:37:10,390 - INFO - World size                    : 1
+2025-06-09 14:37:10,390 - INFO - Device                        : cuda
+2025-06-09 14:37:10,390 - INFO - ------------------------------------
+
+2025-06-09 20:59:10,938 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-09 20:59:13,018 - INFO - using MLP layer as FFN
+2025-06-09 21:00:47,677 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-09 21:00:49,932 - INFO - using MLP layer as FFN
+2025-06-09 21:03:05,461 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-09 21:03:07,468 - INFO - using MLP layer as FFN
+2025-06-09 21:03:09,226 - INFO - ------ Training Configuration ------
+2025-06-09 21:03:09,226 - INFO - Max chunks per sample         : 72
+2025-06-09 21:03:09,226 - INFO - Learning rate (aggregator)    : 1e-05
+2025-06-09 21:03:09,226 - INFO - Learning rate (base)          : 1.0000000000000001e-07
+2025-06-09 21:03:09,226 - INFO - Gradient accumulation steps   : 200
+2025-06-09 21:03:09,226 - INFO - Warm-up steps                 : 5000
+2025-06-09 21:03:09,226 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-09 21:03:09,226 - INFO - Aggregator dropout            : 0.35
+2025-06-09 21:03:09,227 - INFO - Validation frequency          : 40000 steps
+2025-06-09 21:03:09,227 - INFO - Number of epochs              : 200
+2025-06-09 21:03:09,227 - INFO - World size                    : 2
+2025-06-09 21:03:09,227 - INFO - Device                        : cuda
+2025-06-09 21:03:09,227 - INFO - ------------------------------------
+
+2025-06-09 21:04:42,546 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-09 21:04:44,683 - INFO - using MLP layer as FFN
+2025-06-09 21:04:46,504 - INFO - ------ Training Configuration ------
+2025-06-09 21:04:46,504 - INFO - Max chunks per sample         : 72
+2025-06-09 21:04:46,504 - INFO - Learning rate (aggregator)    : 1e-05
+2025-06-09 21:04:46,504 - INFO - Learning rate (base)          : 1.0000000000000001e-07
+2025-06-09 21:04:46,505 - INFO - Gradient accumulation steps   : 200
+2025-06-09 21:04:46,505 - INFO - Warm-up steps                 : 5000
+2025-06-09 21:04:46,505 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-09 21:04:46,505 - INFO - Aggregator dropout            : 0.35
+2025-06-09 21:04:46,505 - INFO - Validation frequency          : 40000 steps
+2025-06-09 21:04:46,505 - INFO - Number of epochs              : 200
+2025-06-09 21:04:46,505 - INFO - World size                    : 2
+2025-06-09 21:04:46,505 - INFO - Device                        : cuda
+2025-06-09 21:04:46,505 - INFO - ------------------------------------
+
+2025-06-09 22:59:24,864 - INFO - Step    1000  Ep 01  loss 1.3812  lr 0.000000  fetch 5562.8 ms  compute 1171.7 ms
+2025-06-09 22:59:24,867 - INFO - Accuracy:     T0:0.50  T1:0.51  T2:0.52  T3:0.53  T4:0.60  T5:0.74  
+2025-06-09 22:59:24,867 - INFO - Sensitivity:  T0:0.00  T1:1.00  T2:1.00  T3:1.00  T4:1.00  T5:1.00  
+2025-06-09 22:59:24,867 - INFO - Specificity:  T0:1.00  T1:0.00  T2:0.00  T3:0.00  T4:0.01  T5:0.01  
+2025-06-09 22:59:24,867 - INFO - iteration: 1000 | epoch: 0 | loss: 1.3812 | lr: 0.0000 | type: training | acc_task0: 0.5010 | sens_task0: 0.0000 | spec_task0: 1.0000 | acc_task1: 0.5091 | sens_task1: 1.0000 | spec_task1: 0.0000 | acc_task2: 0.5206 | sens_task2: 1.0000 | spec_task2: 0.0000 | acc_task3: 0.5321 | sens_task3: 1.0000 | spec_task3: 0.0000 | acc_task4: 0.5953 | sens_task4: 0.9980 | spec_task4: 0.0058 | acc_task5: 0.7359 | sens_task5: 0.9980 | spec_task5: 0.0109
+2025-06-10 00:17:46,965 - INFO - Step    2000  Ep 01  loss 0.5871  lr 0.000000  fetch 2302.9 ms  compute 2190.9 ms
+2025-06-10 00:17:46,968 - INFO - Accuracy:     T0:0.48  T1:0.53  T2:0.54  T3:0.55  T4:0.62  T5:0.75  
+2025-06-10 00:17:46,969 - INFO - Sensitivity:  T0:0.00  T1:1.00  T2:1.00  T3:1.00  T4:1.00  T5:1.00  
+2025-06-10 00:17:46,969 - INFO - Specificity:  T0:1.00  T1:0.00  T2:0.00  T3:0.00  T4:0.00  T5:0.01  
+2025-06-10 00:17:46,969 - INFO - iteration: 2000 | epoch: 0 | loss: 0.5871 | lr: 0.0000 | type: training | acc_task0: 0.4840 | sens_task0: 0.0000 | spec_task0: 1.0000 | acc_task1: 0.5265 | sens_task1: 1.0000 | spec_task1: 0.0000 | acc_task2: 0.5390 | sens_task2: 1.0000 | spec_task2: 0.0000 | acc_task3: 0.5484 | sens_task3: 1.0000 | spec_task3: 0.0000 | acc_task4: 0.6187 | sens_task4: 0.9981 | spec_task4: 0.0031 | acc_task5: 0.7486 | sens_task5: 0.9972 | spec_task5: 0.0056
+2025-06-10 01:37:01,840 - INFO - Step    3000  Ep 01  loss 1.3849  lr 0.000000  fetch 3554.6 ms  compute 1275.1 ms
+2025-06-10 01:37:01,844 - INFO - Accuracy:     T0:0.49  T1:0.52  T2:0.53  T3:0.54  T4:0.61  T5:0.74  
+2025-06-10 01:37:01,844 - INFO - Sensitivity:  T0:0.00  T1:1.00  T2:1.00  T3:1.00  T4:1.00  T5:1.00  
+2025-06-10 01:37:01,844 - INFO - Specificity:  T0:1.00  T1:0.00  T2:0.00  T3:0.00  T4:0.00  T5:0.01  
+2025-06-10 01:37:01,845 - INFO - iteration: 3000 | epoch: 0 | loss: 1.3849 | lr: 0.0000 | type: training | acc_task0: 0.4897 | sens_task0: 0.0000 | spec_task0: 1.0000 | acc_task1: 0.5197 | sens_task1: 1.0000 | spec_task1: 0.0000 | acc_task2: 0.5312 | sens_task2: 1.0000 | spec_task2: 0.0000 | acc_task3: 0.5403 | sens_task3: 1.0000 | spec_task3: 0.0000 | acc_task4: 0.6150 | sens_task4: 0.9987 | spec_task4: 0.0030 | acc_task5: 0.7441 | sens_task5: 0.9968 | spec_task5: 0.0056
+2025-06-10 02:44:30,644 - INFO - Step    4000  Ep 01  loss 0.5453  lr 0.000000  fetch 2374.7 ms  compute 2026.0 ms
+2025-06-10 02:44:30,648 - INFO - Accuracy:     T0:0.50  T1:0.51  T2:0.52  T3:0.53  T4:0.61  T5:0.74  
+2025-06-10 02:44:30,648 - INFO - Sensitivity:  T0:0.00  T1:1.00  T2:1.00  T3:1.00  T4:1.00  T5:1.00  
+2025-06-10 02:44:30,648 - INFO - Specificity:  T0:1.00  T1:0.00  T2:0.00  T3:0.00  T4:0.00  T5:0.00  
+2025-06-10 02:44:30,649 - INFO - iteration: 4000 | epoch: 0 | loss: 0.5453 | lr: 0.0000 | type: training | acc_task0: 0.4990 | sens_task0: 0.0000 | spec_task0: 1.0000 | acc_task1: 0.5102 | sens_task1: 1.0000 | spec_task1: 0.0000 | acc_task2: 0.5221 | sens_task2: 1.0000 | spec_task2: 0.0000 | acc_task3: 0.5332 | sens_task3: 1.0000 | spec_task3: 0.0000 | acc_task4: 0.6075 | sens_task4: 0.9976 | spec_task4: 0.0038 | acc_task5: 0.7383 | sens_task5: 0.9966 | spec_task5: 0.0041
+2025-06-10 06:45:08,657 - INFO - Step    5000  Ep 01  loss 0.1230  lr 0.000000  fetch 18297.7 ms  compute 18828.5 ms
+2025-06-10 06:45:08,661 - INFO - Accuracy:     T0:0.50  T1:0.51  T2:0.52  T3:0.53  T4:0.61  T5:0.74  
+2025-06-10 06:45:08,661 - INFO - Sensitivity:  T0:0.00  T1:1.00  T2:1.00  T3:1.00  T4:1.00  T5:1.00  
+2025-06-10 06:45:08,661 - INFO - Specificity:  T0:1.00  T1:0.00  T2:0.00  T3:0.00  T4:0.00  T5:0.00  
+2025-06-10 06:45:08,661 - INFO - iteration: 5000 | epoch: 0 | loss: 0.1230 | lr: 0.0000 | type: training | acc_task0: 0.5004 | sens_task0: 0.0000 | spec_task0: 1.0000 | acc_task1: 0.5098 | sens_task1: 1.0000 | spec_task1: 0.0000 | acc_task2: 0.5207 | sens_task2: 1.0000 | spec_task2: 0.0000 | acc_task3: 0.5316 | sens_task3: 1.0000 | spec_task3: 0.0000 | acc_task4: 0.6055 | sens_task4: 0.9977 | spec_task4: 0.0042 | acc_task5: 0.7384 | sens_task5: 0.9969 | spec_task5: 0.0033

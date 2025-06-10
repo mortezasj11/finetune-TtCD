@@ -27,6 +27,51 @@ _TORCH_DISTRIBUTED_ENV_VARS = [
     "LOCAL_WORLD_SIZE",
 ]
 
+# # (1) Make sure your logger is configured to write to file:
+# logging.basicConfig(
+#     filename="training.log",
+#     level=logging.INFO,
+#     format="%(asctime)s %(levelname)s %(message)s",
+# )
+LOG_DIR = "/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100_v2"
+os.makedirs(LOG_DIR, exist_ok=True)
+
+logging.basicConfig(
+    filename=os.path.join(LOG_DIR, "gpu_info.log"),
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
+def log_gpu_info():
+    # (2) How many CUDA-visible devices?
+    ngpu = torch.cuda.device_count()
+    logging.info(f"CUDA_VISIBLE_DEVICES reports {ngpu} device(s).")
+
+    for i in range(ngpu):
+        props = torch.cuda.get_device_properties(i)
+        # Major/minor, total memory, multiProcessor count, name
+        logging.info(
+            f"  – GPU {i}: {props.name}  "
+            f"(SM {props.major}.{props.minor}, "
+            f"{props.total_memory/1024**3:.1f} GB VRAM, "
+            f"{props.multi_processor_count} SMs)"
+        )
+
+    # (3) Log CUDA and cuDNN versions from PyTorch
+    logging.info(f"PyTorch version: {torch.__version__}")
+    logging.info(f"CUDA build version: {torch.version.cuda}")
+    logging.info(f"cuDNN version: {torch.backends.cudnn.version()}")
+
+    # (4) If you want the actual driver, MIG, topology info via nvidia-smi:
+    try:
+        smi = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=index,name,driver_version,memory.total,mig.mode.current", "--format=csv,noheader"]
+        ).decode("utf-8")
+        logging.info("`nvidia-smi --query-gpu=` output:\n" + smi.strip())
+    except Exception as e:
+        logging.warning(f"Could not run nvidia-smi: {e}")
+
+
+
 def install_packages():
     commands = [
         ["pip", "install", "--extra-index-url", "https://download.pytorch.org/whl/cu117", "torch==2.0.0", "torchvision==0.15.0", "omegaconf", "torchmetrics==0.10.3", "fvcore", "iopath", "xformers==0.0.18", "submitit","numpy<2.0"],
@@ -235,29 +280,29 @@ if __name__ == "__main__":
                         help="Disable class weights in the loss function")
     
     # Hardware parameters
-    parser.add_argument("--num-gpus", type=int, default=8,
+    parser.add_argument("--num-gpus", type=int, default=8, ################
                         help="Number of GPUs to use for training")
-    parser.add_argument("--num-workers", type=int, default=1, 
+    parser.add_argument("--num-workers", type=int, default=10, 
                         help="Number of workers for data loading")
     
     # Training parameters
-    parser.add_argument("--accum-steps", type=int, default=2000, help="Number of steps to accumulate gradients over")
+    parser.add_argument("--accum-steps", type=int, default=200, help="Number of steps to accumulate gradients over")
     
-    parser.add_argument("--epochs", type=int, default=50, help="Number of epochs to train for")
-    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
-    parser.add_argument("--weight-decay", type=float, default=1e-4, help="Weight decay")
+    parser.add_argument("--epochs", type=int, default=200, help="Number of epochs to train for")
+    parser.add_argument("--lr", type=float, default=2e-4, help="Learning rate")
+    parser.add_argument("--weight-decay", type=float, default=0.001, help="Weight decay")
     parser.add_argument("--optimizer", type=str, default="adamw", choices=["adam", "adamw", "sgd"], help="Optimizer to use")
     parser.add_argument("--unfreeze-strategy", type=str, default="all", choices=["gradual", "none", "all"], help="Strategy for unfreezing the base model")
     
     # Model parameters
     parser.add_argument("--num-attn-heads", type=int, default=3, help="Number of attention heads in the transformer aggregator")
     parser.add_argument("--num-layers", type=int, default=2, help="Number of layers in the transformer aggregator")
-    parser.add_argument("--dropout", type=float, default=0.3, help="Dropout rate in the transformer aggregator")
+    parser.add_argument("--dropout", type=float, default=0.35, help="Dropout rate in the transformer aggregator")
     
     # Output parameters
-    parser.add_argument("--output", type=str, default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu", help="Output directory for logs and checkpoints")
+    parser.add_argument("--output", type=str, default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/n_GPU_A100_v2/output_ddp_p16_23_1150_ac200_JH", help="Output directory for logs and checkpoints")
     parser.add_argument("--print-every", type=int, default=50, help="Print training stats every N steps")
-    parser.add_argument("--val-every", type=int, default=100, help="Run validation every N steps")
+    parser.add_argument("--val-every", type=int, default=21000, help="Run validation every N steps")
     
     # Setup parameters
     parser.add_argument("--install-packages", action="store_true",help="Whether to install required packages")
@@ -266,10 +311,12 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-dir", type=str, default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",help="Directory to save training metrics")
     
     # New parameter for warmup steps
-    parser.add_argument("--warmup-steps", type=int, default=5000, help="Number of steps for warmup")
+    parser.add_argument("--warmup-steps", type=int, default=2000, help="Number of steps for warmup")
     
     args = parser.parse_args()
     # Create output directory if it doesn't exist
     os.makedirs(args.output, exist_ok=True)
     
+
+    log_gpu_info()
     main(args) 

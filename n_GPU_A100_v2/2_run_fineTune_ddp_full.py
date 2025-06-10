@@ -13,6 +13,7 @@ from sklearn.metrics import roc_auc_score
 import sys
 import time
 import json
+import math
 
 # Import utilities from local model_utils.py file
 from model_utils import (
@@ -70,6 +71,20 @@ class DDPFullTrainer:
             print(f"Warmup steps: {self.args.warmup_steps}")
             print(f"World size: {self.args.world_size}")
             print(f"Device: {self.device}\n")
+            logging.info("------ Training Configuration ------")
+            logging.info(f"Max chunks per sample         : {self.args.max_chunks}")
+            logging.info(f"Learning rate (aggregator)    : {self.args.lr}")
+            logging.info(f"Learning rate (base)          : {self.args.lr*0.01}")
+            logging.info(f"Gradient accumulation steps   : {self.args.accum_steps}")
+            logging.info(f"Warm-up steps                 : {self.args.warmup_steps}")
+            logging.info(f"Aggregator layers / heads     : "
+                        f"{self.args.num_layers} / {self.args.num_attn_heads}")
+            logging.info(f"Aggregator dropout            : {self.args.dropout}")
+            logging.info(f"Validation frequency          : {self.args.val_every} steps")
+            logging.info(f"Number of epochs              : {self.args.epochs}")
+            logging.info(f"World size                    : {self.args.world_size}")
+            logging.info(f"Device                        : {self.device}")
+            logging.info("------------------------------------\n")
     
     def _init_model(self):
         """Initialize the model"""
@@ -148,6 +163,14 @@ class DDPFullTrainer:
             output_device=self.args.local_rank,
             find_unused_parameters=True
         )
+        # eliminate the spike; pre-allocate them before DDP starts accumulating gradients
+        # with torch.cuda.amp.autocast():
+        #     dummy = torch.zeros((1, 72, 768), device=self.device, dtype=torch.float16)
+        #     _ = self.model.module.aggregator(dummy, spacing=None).sum().backward()
+        # torch.cuda.empty_cache()          # frees the one-off workspaces
+        # dist.barrier()                    # make sure all ranks are done
+
+
         self.start_epoch = load_latest_checkpoint(self.model,               # ❷
                                           self.args.output,
                                           device=self.device,
@@ -176,7 +199,7 @@ class DDPFullTrainer:
         """Initialize the optimizer with parameter groups"""
         # Define learning rates
         main_lr = self.args.lr
-        base_lr = self.args.lr * 0.1  # Changed from 0.01 to 0.1 for base model
+        base_lr = self.args.lr * 0.01  # Changed from 0.01 to 0.1 for base model
 
         # Separate base and aggregator parameters
         base_params = []
@@ -244,6 +267,7 @@ class DDPFullTrainer:
             
             # Normalize loss by number of tasks
             active_tasks = mask_tensor.sum().item()
+
             if active_tasks > 0:
                 loss = loss / active_tasks
         
@@ -346,15 +370,25 @@ class DDPFullTrainer:
             #print("target" ,target)#target tensor([ 0., -1., -1., -1., -1., -1.], device='cuda:3')
             #print("mask_tensor" ,mask_tensor)#mask_tensor tensor([ True, False, False, False, False, False], device='cuda:3')
             loss = 0.0
+            # for j in range(logits.size(1)):
+            #     if mask_tensor[j]:
+            #         #pw = self.pos_weight[j:j+1]
+            #         pw = (self.pos_weight[j:j+1] if self.pos_weight is not None else None)
+            #         task_loss = F.binary_cross_entropy_with_logits(logits[0, j:j+1],target[j:j+1],pos_weight=pw,   reduction='none')
+            #         #task_loss = self.crit(logits[0, j:j+1], target[j:j+1], pos_weight=pw, reduction='none')
+            #         # Mori:the weight in loss is probably not properly applied! 
+            #         # Maybe later I can change logit where mask is False to 0.0. Actually in training and not here. 
+            #         loss += task_loss
             for j in range(logits.size(1)):
-                if mask_tensor[j]:
-                    #pw = self.pos_weight[j:j+1]
-                    pw = (self.pos_weight[j:j+1] if self.pos_weight is not None else None)
-                    task_loss = F.binary_cross_entropy_with_logits(logits[0, j:j+1],target[j:j+1],pos_weight=pw,   reduction='none')
-                    #task_loss = self.crit(logits[0, j:j+1], target[j:j+1], pos_weight=pw, reduction='none')
-                    # Mori:the weight in loss is probably not properly applied! 
-                    # Maybe later I can change logit where mask is False to 0.0. Actually in training and not here. 
-                    loss += task_loss
+                pw   = self.pos_weight[j:j+1] if self.pos_weight is not None else None
+                tgt  = target[j:j+1]
+                l    = F.binary_cross_entropy_with_logits(
+                            logits[0, j:j+1], tgt,
+                            pos_weight=pw,
+                            reduction='none')
+                if not mask_tensor[j]:
+                    l = l * 0.0               # keep graph but no contribution
+                loss += l
             
             # Normalize loss
             active_tasks = mask_tensor.sum().item()
@@ -548,25 +582,229 @@ class DDPFullTrainer:
         # We'll initialize this in fit() when we have access to the dataloader
         self.scheduler = None
 
+    # def fit(self, train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
+    #     """Train the model"""
+    #     self.global_step = 1
+    #     self.current_epoch = 0
+    #     self.train_loader = train_loader  # Store for scheduler initialization
+        
+    #     # Initialize scheduler now that we have access to the dataloader
+    #     total_steps = len(train_loader) * epochs
+    #     warmup_steps = self.args.warmup_steps
+        
+    #     self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    #         self.optimizer,
+    #         max_lr=[self.args.lr * 0.1, self.args.lr],  # Different max_lr for each param group (base, aggregator)
+    #         total_steps=total_steps,
+    #         pct_start=warmup_steps/total_steps,  # Percentage of steps for warmup
+    #         div_factor=25.0,  # Initial lr = max_lr/25
+    #         final_div_factor=1000.0  # Final lr = initial_lr/1000
+    #     )
+        
+    #     for epoch in range(epochs):
+    #         self.current_epoch = epoch
+    #         self.metrics_calculator.reset()
+            
+    #         # Reset running metrics at the start of each epoch
+    #         self.reset_running_metrics()
+            
+    #         if train_sampler and hasattr(train_sampler, "set_epoch"):
+    #             train_sampler.set_epoch(epoch)
+            
+    #         # Handle unfreezing strategy
+    #         self._handle_unfreezing(epoch, unfreeze_strategy)
+            
+    #         # Training loop
+    #         self.model.train()
+            
+    #         for step, (chunks, labels, mask, spacing) in enumerate(train_loader, 1):
+    #             # Training step (no try/except)
+    #             step_metrics = self._train_step(chunks, labels, mask, spacing)
+                
+    #             # Print training metrics every print_every steps
+    #             if step_metrics and self.args.rank == 0 and self.global_step % self.args.print_every == 0:
+    #                 print(f"\nStep {self.global_step} (Epoch {epoch+1}):")
+    #                 print(f"Loss: {step_metrics['loss']:.4f}")
+    #                 print(f"Learning rate: {step_metrics['lr']:.6f}")
+                    
+    #                 # Print running accuracy, sensitivity, and specificity
+    #                 acc_string  = "Accuracy:     "
+    #                 sens_string = "Sensitivity:  "
+    #                 spec_string = "Specificity:  "
+
+    #                 for i in range(len(self.label_cols)):
+    #                     ak = f'acc_task{i}_running'
+    #                     sk = f'sens_task{i}_running'
+    #                     spk = f'spec_task{i}_running'
+    #                     if ak in step_metrics:
+    #                         acc_string  += f"T{i}:{step_metrics[ak]:.2f}  "
+    #                     if sk in step_metrics:
+    #                         sens_string += f"T{i}:{step_metrics[sk]:.2f}  "
+    #                     if spk in step_metrics:
+    #                         spec_string += f"T{i}:{step_metrics[spk]:.2f}  "
+
+    #                 print(acc_string)
+    #                 print(sens_string)
+    #                 print(spec_string)
+                    
+    #                 # Log training metrics to file - only running metrics
+    #                 train_metrics = {
+    #                     "iteration": self.global_step,
+    #                     "epoch": epoch,
+    #                     "loss": step_metrics['loss'],
+    #                     "lr": step_metrics['lr'],
+    #                     "type": "training"
+    #                 }
+                    
+    #                 # Add running accuracy, sensitivity, and specificity with simplified names
+    #                 for i in range(len(self.label_cols)):
+    #                     acc_key = f'acc_task{i}_running'
+    #                     sens_key = f'sens_task{i}_running'
+    #                     spec_key = f'spec_task{i}_running'
+                        
+    #                     # Add running accuracy if available (with simplified name)
+    #                     if acc_key in step_metrics:
+    #                         train_metrics[f'acc_task{i}'] = step_metrics[acc_key]
+                        
+    #                     # Add running sensitivity if available
+    #                     if sens_key in step_metrics:
+    #                         train_metrics[f'sens_task{i}'] = step_metrics[sens_key]
+                        
+    #                     # Add running specificity if available
+    #                     if spec_key in step_metrics:
+    #                         train_metrics[f'spec_task{i}'] = step_metrics[spec_key]
+                    
+    #                 # Log metrics
+    #                 self.metrics_logger.log_metrics(train_metrics)
+                
+    #             self.global_step += 1
+                
+    #             # Validation - all ranks participate
+    #             if val_loader and self.global_step % self.args.val_every == 0:
+    #                 # Only rank 0 prints the validation message
+    #                 if self.args.rank == 0:
+    #                     print(f"\nReached validation point at step {self.global_step} (in epoch {epoch+1})")
+                    
+    #                 # Force garbage collection before validation on all ranks
+    #                 import gc
+    #                 gc.collect()
+    #                 torch.cuda.empty_cache()
+                    
+    #                 # Run distributed validation
+    #                 self._run_validation(val_loader)
+                    
+    #                 # Force garbage collection after validation on all ranks
+    #                 gc.collect()
+    #                 torch.cuda.empty_cache()
+            
+    #         # Save checkpoint after each epoch
+    #         if self.args.rank == 0:
+    #             checkpoint_metadata = {
+    #                 'label_cols': self.label_cols,
+    #                 'model_config': {
+    #                     'num_attn_heads': self.args.num_attn_heads,
+    #                     'num_layers': self.args.num_layers,
+    #                     'dropout_rate': self.args.dropout
+    #                 },
+    #                 'epoch_metrics': {
+    #                     'epoch': epoch + 1,
+    #                     'total_steps': self.global_step,
+    #                     'learning_rate': self.scheduler.get_last_lr()[0]
+    #                 }
+    #             }
+    #             self.model_saver.save_checkpoint(
+    #                 model=self.model,
+    #                 epoch=epoch + 1,
+    #                 global_step=self.global_step,
+    #                 metadata=checkpoint_metadata,
+    #                 is_final=False
+    #             )
+    #             print(f"\nSaved checkpoint for epoch {epoch + 1}")
+                
+    #     # Save final model
+    #     if self.args.rank == 0:
+    #         checkpoint_metadata = {
+    #             'label_cols': self.label_cols,
+    #             'model_config': {
+    #                 'num_attn_heads': self.args.num_attn_heads,
+    #                 'num_layers': self.args.num_layers,
+    #                 'dropout_rate': self.args.dropout
+    #             },
+    #             'final_metrics': {
+    #                 'total_steps': self.global_step,
+    #                 'epochs_completed': epochs
+    #             }
+    #         }
+    #         self.model_saver.save_checkpoint(
+    #             model=self.model,
+    #             epoch=epochs,
+    #             global_step=self.global_step,
+    #             metadata=checkpoint_metadata,
+    #             is_final=True
+    #         )
+
+
     def fit(self, train_loader, train_sampler, val_loader, epochs, unfreeze_strategy):
         """Train the model"""
         self.global_step = 1
         self.current_epoch = 0
         self.train_loader = train_loader  # Store for scheduler initialization
         
-        # Initialize scheduler now that we have access to the dataloader
-        total_steps = len(train_loader) * epochs
-        warmup_steps = self.args.warmup_steps
+        #Initialize scheduler now that we have access to the dataloader
+        # total_steps = len(train_loader) * epochs
+        # warmup_steps = self.args.warmup_steps
         
+        # self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        #     self.optimizer,
+        #     max_lr=[self.args.lr * 0.1, self.args.lr],  # Different max_lr for each param group (base, aggregator)
+        #     total_steps=total_steps,
+        #     pct_start=warmup_steps/total_steps,  # Percentage of steps for warmup
+        #     div_factor=25.0,  # Initial lr = max_lr/25
+        #     final_div_factor=1000.0  # Final lr = initial_lr/1000
+        # )
+        optim_steps_per_epoch = math.ceil(len(train_loader) / self.args.accum_steps)
+        total_optim_steps     = optim_steps_per_epoch * epochs          # e.g. 6 400
+        if self.args.warmup_steps > total_optim_steps:
+            raise ValueError("warmup_steps exceeds total optimiser steps.")
+
+        pct_start = self.args.warmup_steps / total_optim_steps          # 78 % in your run
+
         self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
             self.optimizer,
-            max_lr=[self.args.lr * 0.1, self.args.lr],  # Different max_lr for each param group (base, aggregator)
-            total_steps=total_steps,
-            pct_start=warmup_steps/total_steps,  # Percentage of steps for warmup
-            div_factor=25.0,  # Initial lr = max_lr/25
-            final_div_factor=1000.0  # Final lr = initial_lr/1000
+            max_lr=[self.args.lr * 0.01, self.args.lr],  # base-model, aggregator
+            total_steps=total_optim_steps,
+            pct_start=pct_start,
+            div_factor=25.0,
+            final_div_factor=1000.0,
         )
-        
+
+
+        # optim_steps_per_epoch = math.ceil(len(train_loader) / args.accum_steps)
+        # total_optim_steps     = optim_steps_per_epoch * epochs
+        # warmup_steps          = args.warmup_steps       # keep the same absolute number
+
+        # self.scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        #         self.optimizer,
+        #         max_lr=[args.lr * 0.1, args.lr],
+        #         total_steps=total_optim_steps,
+        #         pct_start   = warmup_steps / total_optim_steps,
+        #         div_factor        = 25.0,
+        #         final_div_factor  = 1000.0
+        # )
+            # -----------------------------------------------------------
+
+
+
+
+
+
+        #  ▸ initialise timers
+        # -----------------------------------------------------------
+        self._last_batch_end = time.time()
+        self.fetch_avg   = 0.0
+        self.compute_avg = 0.0
+        beta = 0.98                   # EWMA smoothing factor
+        # -----------------------------------------------------------
         for epoch in range(epochs):
             self.current_epoch = epoch
             self.metrics_calculator.reset()
@@ -585,13 +823,34 @@ class DDPFullTrainer:
             
             for step, (chunks, labels, mask, spacing) in enumerate(train_loader, 1):
                 # Training step (no try/except)
+                t_fetch_start = time.time()                  # right AFTER batch is yielded
+                fetch_ms = (t_fetch_start - self._last_batch_end) * 1000
+
+                self.fetch_avg = beta * self.fetch_avg + (1.0 - beta) * fetch_ms
+                t_compute_start = time.time()
+
+
                 step_metrics = self._train_step(chunks, labels, mask, spacing)
+                # with self.model.no_sync() if not update_now else torch.enable_grad():
+                #     step_metrics = self._train_step(chunks, labels, mask, spacing)
+
+                compute_ms = (time.time() - t_compute_start) * 1000
+                self.compute_avg = beta * self.compute_avg + (1.0 - beta) * compute_ms
+                self._last_batch_end = time.time()
                 
                 # Print training metrics every print_every steps
                 if step_metrics and self.args.rank == 0 and self.global_step % self.args.print_every == 0:
-                    print(f"\nStep {self.global_step} (Epoch {epoch+1}):")
+                    #print(f"\nStep {self.global_step} (Epoch {epoch+1}):")
+                    print(f"\nStep {self.global_step} (Epoch {self.current_epoch+1}):")
                     print(f"Loss: {step_metrics['loss']:.4f}")
                     print(f"Learning rate: {step_metrics['lr']:.6f}")
+
+                    print(f"\nStep {self.global_step:>7}  "
+                        f"Ep {self.current_epoch+1:02d}  "
+                        f"loss {step_metrics['loss']:.4f}  "
+                        f"lr {step_metrics['lr']:.6f}  "
+                        f"fetch {self.fetch_avg:6.1f} ms  "
+                        f"compute {self.compute_avg:6.1f} ms")
                     
                     # Print running accuracy, sensitivity, and specificity
                     acc_string  = "Accuracy:     "
@@ -612,6 +871,15 @@ class DDPFullTrainer:
                     print(acc_string)
                     print(sens_string)
                     print(spec_string)
+                    logging.info(f"Step {self.global_step:>7}  "
+                                f"Ep {self.current_epoch+1:02d}  "
+                                f"loss {step_metrics['loss']:.4f}  "
+                                f"lr {step_metrics['lr']:.6f}  "
+                                f"fetch {self.fetch_avg:6.1f} ms  "
+                                f"compute {self.compute_avg:6.1f} ms")
+                    logging.info(acc_string)
+                    logging.info(sens_string)
+                    logging.info(spec_string)
                     
                     # Log training metrics to file - only running metrics
                     train_metrics = {
@@ -643,6 +911,13 @@ class DDPFullTrainer:
                     # Log metrics
                     self.metrics_logger.log_metrics(train_metrics)
                 
+
+                # one-off save at step 19 000
+                if self.args.rank == 0 and self.global_step % 10_000 == 0:              # NEW
+                    self.model_saver.save_checkpoint(self.model, epoch=self.current_epoch+1,     # NEW
+                                                    global_step=self.global_step)
+
+
                 self.global_step += 1
                 
                 # Validation - all ranks participate
@@ -703,11 +978,13 @@ class DDPFullTrainer:
             }
             self.model_saver.save_checkpoint(
                 model=self.model,
-                epoch=epochs,
+                epoch=epochs + 1,
                 global_step=self.global_step,
                 metadata=checkpoint_metadata,
                 is_final=True
             )
+
+
 
     def _handle_unfreezing(self, epoch, unfreeze_strategy):
         """Handle unfreezing of model parameters based on strategy and epoch"""
@@ -981,7 +1258,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=1, help='Batch size per GPU')
     parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='Weight decay')
-    parser.add_argument('--warmup_steps', type=int, default=5000, help='Warmup steps for learning rate scheduling')
+    parser.add_argument('--warmup_steps', type=int, default=50, help='Warmup steps for learning rate scheduling')
     parser.add_argument('--val_every', type=int, default=100, help='Validation frequency in steps')
     
     # Model parameters
@@ -1048,7 +1325,7 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-dir", type=str, 
                        default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",
                        help="Directory to save training metrics")
-    parser.add_argument("--max-chunks", type=int, default=72, help="Maximum number of chunks to process per sample")
+    parser.add_argument("--max-chunks", type=int, default=64, help="Maximum number of chunks to process per sample")
     
     args = parser.parse_args()
     

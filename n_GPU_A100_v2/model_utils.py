@@ -227,6 +227,20 @@ class CombinedModel(nn.Module):
         )
         self.classifier = nn.Linear(self.chunk_feat_dim, num_tasks)
 
+        # ─── shorter _augment_feats ─────────────────────────────────────────────
+    def _augment_feats(self, feats: torch.Tensor) -> torch.Tensor:
+        if not self.training:                                   # keep eval intact
+            return feats
+        S, dev = feats.size(0), feats.device
+        if torch.rand(1, device=dev) < 0.5:                     # reverse
+            feats = feats.flip(0)
+        if S > 1 and torch.rand(1, device=dev) < 0.9:           # circular roll
+            feats = torch.roll(feats, torch.randint(1, S, (1,), device=dev).item(), 0)
+        if torch.rand(1, device=dev) < 0.1:                     # random shuffle
+            feats = feats[torch.randperm(S, device=dev)]
+        return feats
+
+
     #@torch.no_grad()          # remove this decorator if you want the base to train
     def _chunk_embed(self, chunk):
         return self.base(chunk.unsqueeze(0))       # → [1, 768]
@@ -242,6 +256,7 @@ class CombinedModel(nn.Module):
         feats = torch.cat([self._chunk_embed(x[i]) for i in range(S)], dim=0)  # [S, 768]
         spacing_vec = torch.tensor(spacing, dtype=dtype, device=device).expand(S, 3)
         feats = torch.cat([feats, spacing_vec], dim=1)                        # [S, 771]
+        feats = self._augment_feats(feats)                    # optional reorder
         encoded = self.transformer(feats.unsqueeze(0))  # [1, S, 771]
         pooled = self.lse_tau * torch.logsumexp(encoded / self.lse_tau, dim=1)  # [1, 771]
         return self.classifier(pooled)       # [1, num_tasks]
@@ -281,7 +296,7 @@ class VolumeProcessor:
         volume = nifti.get_fdata()
         
         # Normalize to 0-1 range
-        volume = (volume - volume.min()) / (volume.max() - volume.min() + 1e-8)
+        volume = (volume - volume.min()) / (volume.max() - volume.min() + self.eps)
         
         return volume
     
@@ -539,7 +554,7 @@ class ModelSaver:
         if is_final:
             checkpoint_name = 'model_final.pt'
         else:
-            checkpoint_name = f'model_epoch_{epoch}.pt'
+            checkpoint_name = f'model_ep{epoch}_it{global_step}.pt'
         
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
         
@@ -551,14 +566,14 @@ class ModelSaver:
         
         # Save components separately if requested
         if save_components:
-            self._save_model_components(model, epoch, is_final)
+            self._save_model_components(model, epoch, global_step, is_final)
         
         # Save metadata
         self._save_metadata(model, epoch, global_step, metadata, is_final)
         
         print(f"Saved checkpoint at epoch {epoch} to {checkpoint_path}")
     
-    def _save_model_components(self, model, epoch, is_final=False):
+    def _save_model_components(self, model, epoch, global_step, is_final=False):
         """
         Save base model and aggregator components separately.
         
@@ -585,8 +600,8 @@ class ModelSaver:
             base_checkpoint_name = 'base_model_final.pt'
             aggregator_checkpoint_name = 'aggregator_final.pt'
         else:
-            base_checkpoint_name = f'base_model_epoch_{epoch}.pt'
-            aggregator_checkpoint_name = f'aggregator_epoch_{epoch}.pt'
+            base_checkpoint_name       = f'base_ep{epoch}_it{global_step}.pt'
+            aggregator_checkpoint_name = f'aggregator_ep{epoch}_it{global_step}.pt'
         
         # Save base model
         torch.save(

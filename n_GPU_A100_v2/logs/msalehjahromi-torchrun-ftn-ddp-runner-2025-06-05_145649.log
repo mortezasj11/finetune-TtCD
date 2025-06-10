@@ -1,0 +1,15 @@
+2025-06-05_145649: Deploying the 2_multiple_GPU_DDP.yaml job file.
+job.batch/msalehjahromi-torchrun-ftn-ddp created
+2025-06-05_145929: Waiting for the pod of job/msalehjahromi-torchrun-ftn-ddp to be ready before starting the log tailing process.
+pod/msalehjahromi-torchrun-ftn-ddp-df2hc condition met
+2025-06-05_145939: Starting to tail the container log.
+2025-06-05_145939: Creating the log-runner.sh script.
+2025-06-05_145939: Executing the log-runner.sh script.
+2025-06-05_145939: The log-runner.sh script for job/msalehjahromi-torchrun-ftn-ddp is now running.
+2025-06-05_150225: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_150225: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_150504: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_150504: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+Error from server (NotFound): jobs.batch "msalehjahromi-torchrun-ftn-ddp" not found
+Error from server (NotFound): jobs.batch "msalehjahromi-torchrun-ftn-ddp" not found
+2025-06-05_150547: The job/msalehjahromi-torchrun-ftn-ddp is no longer running. Log-runner.sh script is stopping.

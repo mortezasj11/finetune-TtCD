@@ -1,0 +1,166 @@
+2025-06-06 21:55:29,646 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-06 21:55:31,988 - INFO - using MLP layer as FFN
+2025-06-06 21:58:08,238 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-06 21:58:10,157 - INFO - using MLP layer as FFN
+2025-06-06 22:32:55,523 - INFO - iteration: 2000 | epoch: 0 | loss: 0.9854 | lr: 0.0000 | type: training | acc_task0: 0.4895 | sens_task0: 0.0000 | spec_task0: 1.0000 | acc_task1: 0.5209 | sens_task1: 1.0000 | spec_task1: 0.0011 | acc_task2: 0.5300 | sens_task2: 1.0000 | spec_task2: 0.0000 | acc_task3: 0.4589 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3874 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.2662 | sens_task5: 0.0536 | spec_task5: 0.9349
+2025-06-06 23:07:07,383 - INFO - iteration: 4000 | epoch: 0 | loss: 1.0479 | lr: 0.0000 | type: training | acc_task0: 0.4958 | sens_task0: 0.0000 | spec_task0: 1.0000 | acc_task1: 0.5149 | sens_task1: 1.0000 | spec_task1: 0.0010 | acc_task2: 0.5257 | sens_task2: 1.0000 | spec_task2: 0.0000 | acc_task3: 0.4638 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3889 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.2715 | sens_task5: 0.0538 | spec_task5: 0.9268
+2025-06-06 23:41:32,175 - INFO - iteration: 6000 | epoch: 0 | loss: 0.6688 | lr: 0.0000 | type: training | acc_task0: 0.4987 | sens_task0: 0.0000 | spec_task0: 1.0000 | acc_task1: 0.5129 | sens_task1: 1.0000 | spec_task1: 0.0014 | acc_task2: 0.5234 | sens_task2: 1.0000 | spec_task2: 0.0000 | acc_task3: 0.4655 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3909 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.2854 | sens_task5: 0.0788 | spec_task5: 0.8891
+2025-06-07 00:15:59,947 - INFO - iteration: 8000 | epoch: 0 | loss: 0.5718 | lr: 0.0000 | type: training | acc_task0: 0.4995 | sens_task0: 0.0000 | spec_task0: 0.9995 | acc_task1: 0.5123 | sens_task1: 0.9995 | spec_task1: 0.0034 | acc_task2: 0.5224 | sens_task2: 0.9998 | spec_task2: 0.0003 | acc_task3: 0.4671 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3937 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.3048 | sens_task5: 0.1191 | spec_task5: 0.8419
+2025-06-07 00:50:03,240 - INFO - iteration: 10000 | epoch: 0 | loss: 0.5665 | lr: 0.0000 | type: training | acc_task0: 0.5008 | sens_task0: 0.0010 | spec_task0: 0.9980 | acc_task1: 0.5115 | sens_task1: 0.9974 | spec_task1: 0.0080 | acc_task2: 0.5205 | sens_task2: 0.9994 | spec_task2: 0.0004 | acc_task3: 0.4684 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3959 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.3295 | sens_task5: 0.1698 | spec_task5: 0.7873
+2025-06-07 00:57:15,046 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-07 00:57:17,506 - INFO - using MLP layer as FFN
+2025-06-07 00:57:19,325 - INFO - ------ Training Configuration ------
+2025-06-07 00:57:19,325 - INFO - Max chunks per sample         : 72
+2025-06-07 00:57:19,325 - INFO - Learning rate (aggregator)    : 5e-05
+2025-06-07 00:57:19,325 - INFO - Learning rate (base)          : 5.000000000000001e-07
+2025-06-07 00:57:19,325 - INFO - Gradient accumulation steps   : 600
+2025-06-07 00:57:19,325 - INFO - Warm-up steps                 : 5000
+2025-06-07 00:57:19,325 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-07 00:57:19,325 - INFO - Aggregator dropout            : 0.35
+2025-06-07 00:57:19,325 - INFO - Validation frequency          : 41000 steps
+2025-06-07 00:57:19,325 - INFO - Number of epochs              : 100
+2025-06-07 00:57:19,325 - INFO - World size                    : 2
+2025-06-07 00:57:19,325 - INFO - Device                        : cuda
+2025-06-07 00:57:19,325 - INFO - ------------------------------------
+
+2025-06-07 01:27:12,790 - INFO - iteration: 12000 | epoch: 0 | loss: 0.9775 | lr: 0.0000 | type: training | acc_task0: 0.4986 | sens_task0: 0.0027 | spec_task0: 0.9952 | acc_task1: 0.5132 | sens_task1: 0.9873 | spec_task1: 0.0194 | acc_task2: 0.5215 | sens_task2: 0.9990 | spec_task2: 0.0011 | acc_task3: 0.4677 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3951 | sens_task4: 0.0000 | spec_task4: 1.0000 | acc_task5: 0.3594 | sens_task5: 0.2301 | spec_task5: 0.7276
+2025-06-07 02:02:07,978 - INFO - iteration: 14000 | epoch: 0 | loss: 0.6228 | lr: 0.0000 | type: training | acc_task0: 0.4990 | sens_task0: 0.0063 | spec_task0: 0.9916 | acc_task1: 0.5145 | sens_task1: 0.9747 | spec_task1: 0.0358 | acc_task2: 0.5213 | sens_task2: 0.9985 | spec_task2: 0.0027 | acc_task3: 0.4679 | sens_task3: 0.0000 | spec_task3: 1.0000 | acc_task4: 0.3949 | sens_task4: 0.0000 | spec_task4: 0.9998 | acc_task5: 0.3886 | sens_task5: 0.2968 | spec_task5: 0.6474
+2025-06-07 02:36:29,645 - INFO - iteration: 16000 | epoch: 0 | loss: 0.8897 | lr: 0.0000 | type: training | acc_task0: 0.4996 | sens_task0: 0.0123 | spec_task0: 0.9859 | acc_task1: 0.5127 | sens_task1: 0.9550 | spec_task1: 0.0539 | acc_task2: 0.5194 | sens_task2: 0.9950 | spec_task2: 0.0045 | acc_task3: 0.4687 | sens_task3: 0.0001 | spec_task3: 0.9999 | acc_task4: 0.3954 | sens_task4: 0.0000 | spec_task4: 0.9996 | acc_task5: 0.4185 | sens_task5: 0.3634 | spec_task5: 0.5720
+2025-06-07 03:11:28,226 - INFO - iteration: 18000 | epoch: 0 | loss: 0.8576 | lr: 0.0000 | type: training | acc_task0: 0.4994 | sens_task0: 0.0198 | spec_task0: 0.9769 | acc_task1: 0.5161 | sens_task1: 0.9342 | spec_task1: 0.0830 | acc_task2: 0.5172 | sens_task2: 0.9884 | spec_task2: 0.0079 | acc_task3: 0.4690 | sens_task3: 0.0007 | spec_task3: 0.9991 | acc_task4: 0.3959 | sens_task4: 0.0000 | spec_task4: 0.9995 | acc_task5: 0.4484 | sens_task5: 0.4239 | spec_task5: 0.5171
+2025-06-07 03:47:06,894 - INFO - iteration: 20000 | epoch: 0 | loss: 0.8614 | lr: 0.0000 | type: training | acc_task0: 0.4990 | sens_task0: 0.0304 | spec_task0: 0.9673 | acc_task1: 0.5178 | sens_task1: 0.9094 | spec_task1: 0.1102 | acc_task2: 0.5170 | sens_task2: 0.9776 | spec_task2: 0.0177 | acc_task3: 0.4691 | sens_task3: 0.0038 | spec_task3: 0.9977 | acc_task4: 0.3945 | sens_task4: 0.0003 | spec_task4: 0.9993 | acc_task5: 0.4744 | sens_task5: 0.4770 | spec_task5: 0.4670
+2025-06-07 04:23:22,351 - INFO - iteration: 22000 | epoch: 0 | loss: 0.7896 | lr: 0.0000 | type: training | acc_task0: 0.5000 | sens_task0: 0.0401 | spec_task0: 0.9565 | acc_task1: 0.5207 | sens_task1: 0.8863 | spec_task1: 0.1430 | acc_task2: 0.5144 | sens_task2: 0.9633 | spec_task2: 0.0317 | acc_task3: 0.4711 | sens_task3: 0.0076 | spec_task3: 0.9936 | acc_task4: 0.3953 | sens_task4: 0.0006 | spec_task4: 0.9988 | acc_task5: 0.4952 | sens_task5: 0.5201 | spec_task5: 0.4258
+2025-06-07 04:58:39,889 - INFO - iteration: 24000 | epoch: 0 | loss: 0.6656 | lr: 0.0000 | type: training | acc_task0: 0.5009 | sens_task0: 0.0489 | spec_task0: 0.9469 | acc_task1: 0.5223 | sens_task1: 0.8582 | spec_task1: 0.1772 | acc_task2: 0.5127 | sens_task2: 0.9453 | spec_task2: 0.0504 | acc_task3: 0.4744 | sens_task3: 0.0159 | spec_task3: 0.9884 | acc_task4: 0.3973 | sens_task4: 0.0015 | spec_task4: 0.9982 | acc_task5: 0.5139 | sens_task5: 0.5577 | spec_task5: 0.3912
+2025-06-07 05:34:54,265 - INFO - iteration: 26000 | epoch: 0 | loss: 0.7691 | lr: 0.0000 | type: training | acc_task0: 0.5010 | sens_task0: 0.0574 | spec_task0: 0.9400 | acc_task1: 0.5228 | sens_task1: 0.8280 | spec_task1: 0.2084 | acc_task2: 0.5113 | sens_task2: 0.9228 | spec_task2: 0.0699 | acc_task3: 0.4749 | sens_task3: 0.0261 | spec_task3: 0.9802 | acc_task4: 0.3955 | sens_task4: 0.0034 | spec_task4: 0.9955 | acc_task5: 0.5313 | sens_task5: 0.5918 | spec_task5: 0.3617
+2025-06-07 06:12:00,461 - INFO - iteration: 28000 | epoch: 0 | loss: 0.7247 | lr: 0.0000 | type: training | acc_task0: 0.5001 | sens_task0: 0.0637 | spec_task0: 0.9311 | acc_task1: 0.5235 | sens_task1: 0.8002 | spec_task1: 0.2391 | acc_task2: 0.5090 | sens_task2: 0.8968 | spec_task2: 0.0938 | acc_task3: 0.4759 | sens_task3: 0.0395 | spec_task3: 0.9667 | acc_task4: 0.3966 | sens_task4: 0.0085 | spec_task4: 0.9902 | acc_task5: 0.5458 | sens_task5: 0.6205 | spec_task5: 0.3363
+2025-06-07 06:50:13,017 - INFO - iteration: 30000 | epoch: 0 | loss: 0.6878 | lr: 0.0000 | type: training | acc_task0: 0.4993 | sens_task0: 0.0686 | spec_task0: 0.9259 | acc_task1: 0.5239 | sens_task1: 0.7721 | spec_task1: 0.2680 | acc_task2: 0.5089 | sens_task2: 0.8708 | spec_task2: 0.1205 | acc_task3: 0.4768 | sens_task3: 0.0534 | spec_task3: 0.9540 | acc_task4: 0.3996 | sens_task4: 0.0230 | spec_task4: 0.9774 | acc_task5: 0.5596 | sens_task5: 0.6461 | spec_task5: 0.3158
+2025-06-07 07:30:07,371 - INFO - iteration: 32000 | epoch: 0 | loss: 0.6154 | lr: 0.0000 | type: training | acc_task0: 0.4988 | sens_task0: 0.0712 | spec_task0: 0.9232 | acc_task1: 0.5233 | sens_task1: 0.7442 | spec_task1: 0.2953 | acc_task2: 0.5085 | sens_task2: 0.8437 | spec_task2: 0.1482 | acc_task3: 0.4782 | sens_task3: 0.0709 | spec_task3: 0.9377 | acc_task4: 0.4032 | sens_task4: 0.0455 | spec_task4: 0.9534 | acc_task5: 0.5713 | sens_task5: 0.6684 | spec_task5: 0.2966
+2025-06-07 08:10:02,198 - INFO - iteration: 34000 | epoch: 0 | loss: 0.7020 | lr: 0.0000 | type: training | acc_task0: 0.4988 | sens_task0: 0.0729 | spec_task0: 0.9208 | acc_task1: 0.5244 | sens_task1: 0.7192 | spec_task1: 0.3235 | acc_task2: 0.5075 | sens_task2: 0.8159 | spec_task2: 0.1767 | acc_task3: 0.4806 | sens_task3: 0.0906 | spec_task3: 0.9198 | acc_task4: 0.4098 | sens_task4: 0.0773 | spec_task4: 0.9210 | acc_task5: 0.5811 | sens_task5: 0.6876 | spec_task5: 0.2796
+2025-06-07 08:51:13,983 - INFO - iteration: 36000 | epoch: 0 | loss: 0.6836 | lr: 0.0000 | type: training | acc_task0: 0.4986 | sens_task0: 0.0734 | spec_task0: 0.9202 | acc_task1: 0.5240 | sens_task1: 0.6942 | spec_task1: 0.3482 | acc_task2: 0.5064 | sens_task2: 0.7885 | spec_task2: 0.2034 | acc_task3: 0.4830 | sens_task3: 0.1130 | spec_task3: 0.9000 | acc_task4: 0.4168 | sens_task4: 0.1136 | spec_task4: 0.8839 | acc_task5: 0.5898 | sens_task5: 0.7052 | spec_task5: 0.2635
+2025-06-07 09:29:43,872 - INFO - iteration: 38000 | epoch: 1 | loss: 0.7393 | lr: 0.0000 | type: training | acc_task0: 0.4875 | sens_task0: 0.0542 | spec_task0: 0.9265 | acc_task1: 0.5344 | sens_task1: 0.2760 | spec_task1: 0.8059 | acc_task2: 0.4842 | sens_task2: 0.2752 | spec_task2: 0.7133 | acc_task3: 0.5071 | sens_task3: 0.4879 | spec_task3: 0.5295 | acc_task4: 0.5816 | sens_task4: 0.8541 | spec_task4: 0.1472 | acc_task5: 0.7526 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 10:09:15,621 - INFO - iteration: 40000 | epoch: 1 | loss: 0.7480 | lr: 0.0000 | type: training | acc_task0: 0.4857 | sens_task0: 0.0579 | spec_task0: 0.9293 | acc_task1: 0.5258 | sens_task1: 0.2603 | spec_task1: 0.8114 | acc_task2: 0.4812 | sens_task2: 0.2577 | spec_task2: 0.7303 | acc_task3: 0.5056 | sens_task3: 0.5090 | spec_task3: 0.5015 | acc_task4: 0.5928 | sens_task4: 0.8886 | spec_task4: 0.1224 | acc_task5: 0.7434 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 10:59:56,949 - INFO - samples_evaluated: 5136 | avg_loss: 0.7875 | auc_task0: 0.5340 | acc_task0: 0.9852 | sens_task0: 0.0000 | spec_task0: 0.9980 | auc_task1: 0.5754 | acc_task1: 0.3024 | sens_task1: 0.7931 | spec_task1: 0.2908 | auc_task2: 0.4956 | acc_task2: 0.6723 | sens_task2: 0.3190 | spec_task2: 0.6845 | auc_task3: 0.4504 | acc_task3: 0.0519 | sens_task3: 0.9902 | spec_task3: 0.0095 | auc_task4: 0.5409 | acc_task4: 0.0895 | sens_task4: 0.9708 | spec_task4: 0.0269 | auc_task5: 0.3736 | acc_task5: 0.1247 | sens_task5: 1.0000 | spec_task5: 0.0005 | iteration: 41000 | epoch: 1 | lr: 0.0000 | validation_time_seconds: 1812.2420 | type: validation
+2025-06-07 11:19:48,410 - INFO - iteration: 42000 | epoch: 1 | loss: 0.8030 | lr: 0.0000 | type: training | acc_task0: 0.4926 | sens_task0: 0.0619 | spec_task0: 0.9353 | acc_task1: 0.5218 | sens_task1: 0.2523 | spec_task1: 0.8100 | acc_task2: 0.4795 | sens_task2: 0.2440 | spec_task2: 0.7400 | acc_task3: 0.5048 | sens_task3: 0.5250 | spec_task3: 0.4812 | acc_task4: 0.5984 | sens_task4: 0.9132 | spec_task4: 0.0978 | acc_task5: 0.7406 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 12:01:04,979 - INFO - iteration: 44000 | epoch: 1 | loss: 0.5763 | lr: 0.0000 | type: training | acc_task0: 0.4958 | sens_task0: 0.0600 | spec_task0: 0.9356 | acc_task1: 0.5254 | sens_task1: 0.2505 | spec_task1: 0.8146 | acc_task2: 0.4864 | sens_task2: 0.2435 | spec_task2: 0.7516 | acc_task3: 0.5129 | sens_task3: 0.5487 | spec_task3: 0.4715 | acc_task4: 0.5968 | sens_task4: 0.9249 | spec_task4: 0.0796 | acc_task5: 0.7423 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 12:39:22,638 - INFO - iteration: 46000 | epoch: 1 | loss: 0.6225 | lr: 0.0000 | type: training | acc_task0: 0.4981 | sens_task0: 0.0602 | spec_task0: 0.9363 | acc_task1: 0.5263 | sens_task1: 0.2454 | spec_task1: 0.8189 | acc_task2: 0.4881 | sens_task2: 0.2356 | spec_task2: 0.7618 | acc_task3: 0.5153 | sens_task3: 0.5605 | spec_task3: 0.4636 | acc_task4: 0.5980 | sens_task4: 0.9349 | spec_task4: 0.0703 | acc_task5: 0.7418 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 13:18:41,843 - INFO - iteration: 48000 | epoch: 1 | loss: 0.6844 | lr: 0.0000 | type: training | acc_task0: 0.5014 | sens_task0: 0.0596 | spec_task0: 0.9390 | acc_task1: 0.5281 | sens_task1: 0.2423 | spec_task1: 0.8232 | acc_task2: 0.4880 | sens_task2: 0.2271 | spec_task2: 0.7688 | acc_task3: 0.5159 | sens_task3: 0.5655 | spec_task3: 0.4598 | acc_task4: 0.5982 | sens_task4: 0.9422 | spec_task4: 0.0631 | acc_task5: 0.7409 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 13:59:11,246 - INFO - iteration: 50000 | epoch: 1 | loss: 0.6266 | lr: 0.0000 | type: training | acc_task0: 0.5030 | sens_task0: 0.0580 | spec_task0: 0.9404 | acc_task1: 0.5283 | sens_task1: 0.2378 | spec_task1: 0.8259 | acc_task2: 0.4898 | sens_task2: 0.2200 | spec_task2: 0.7778 | acc_task3: 0.5182 | sens_task3: 0.5671 | spec_task3: 0.4632 | acc_task4: 0.5990 | sens_task4: 0.9481 | spec_task4: 0.0591 | acc_task5: 0.7393 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 14:39:37,874 - INFO - iteration: 52000 | epoch: 1 | loss: 0.6808 | lr: 0.0000 | type: training | acc_task0: 0.5018 | sens_task0: 0.0559 | spec_task0: 0.9419 | acc_task1: 0.5277 | sens_task1: 0.2336 | spec_task1: 0.8303 | acc_task2: 0.4912 | sens_task2: 0.2133 | spec_task2: 0.7890 | acc_task3: 0.5179 | sens_task3: 0.5659 | spec_task3: 0.4638 | acc_task4: 0.6009 | sens_task4: 0.9521 | spec_task4: 0.0542 | acc_task5: 0.7399 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 15:21:06,559 - INFO - iteration: 54000 | epoch: 1 | loss: 0.7863 | lr: 0.0000 | type: training | acc_task0: 0.5029 | sens_task0: 0.0550 | spec_task0: 0.9434 | acc_task1: 0.5295 | sens_task1: 0.2302 | spec_task1: 0.8364 | acc_task2: 0.4927 | sens_task2: 0.2096 | spec_task2: 0.7955 | acc_task3: 0.5179 | sens_task3: 0.5631 | spec_task3: 0.4669 | acc_task4: 0.5997 | sens_task4: 0.9550 | spec_task4: 0.0496 | acc_task5: 0.7393 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 16:01:59,523 - INFO - iteration: 56000 | epoch: 1 | loss: 0.5865 | lr: 0.0000 | type: training | acc_task0: 0.5025 | sens_task0: 0.0540 | spec_task0: 0.9449 | acc_task1: 0.5285 | sens_task1: 0.2245 | spec_task1: 0.8416 | acc_task2: 0.4936 | sens_task2: 0.2065 | spec_task2: 0.8019 | acc_task3: 0.5206 | sens_task3: 0.5589 | spec_task3: 0.4774 | acc_task4: 0.5999 | sens_task4: 0.9574 | spec_task4: 0.0467 | acc_task5: 0.7386 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 16:43:06,143 - INFO - iteration: 58000 | epoch: 1 | loss: 0.7262 | lr: 0.0000 | type: training | acc_task0: 0.5046 | sens_task0: 0.0546 | spec_task0: 0.9464 | acc_task1: 0.5296 | sens_task1: 0.2202 | spec_task1: 0.8465 | acc_task2: 0.4949 | sens_task2: 0.2033 | spec_task2: 0.8061 | acc_task3: 0.5212 | sens_task3: 0.5529 | spec_task3: 0.4856 | acc_task4: 0.5986 | sens_task4: 0.9586 | spec_task4: 0.0441 | acc_task5: 0.7381 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 17:29:56,397 - INFO - iteration: 60000 | epoch: 1 | loss: 0.7218 | lr: 0.0000 | type: training | acc_task0: 0.5031 | sens_task0: 0.0534 | spec_task0: 0.9468 | acc_task1: 0.5280 | sens_task1: 0.2171 | spec_task1: 0.8480 | acc_task2: 0.4936 | sens_task2: 0.1992 | spec_task2: 0.8093 | acc_task3: 0.5223 | sens_task3: 0.5499 | spec_task3: 0.4912 | acc_task4: 0.5998 | sens_task4: 0.9600 | spec_task4: 0.0424 | acc_task5: 0.7385 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 18:07:05,826 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-07 18:07:08,713 - INFO - using MLP layer as FFN
+2025-06-07 18:07:14,249 - INFO - ------ Training Configuration ------
+2025-06-07 18:07:14,250 - INFO - Max chunks per sample         : 72
+2025-06-07 18:07:14,250 - INFO - Learning rate (aggregator)    : 5e-05
+2025-06-07 18:07:14,250 - INFO - Learning rate (base)          : 5.000000000000001e-07
+2025-06-07 18:07:14,250 - INFO - Gradient accumulation steps   : 600
+2025-06-07 18:07:14,250 - INFO - Warm-up steps                 : 20
+2025-06-07 18:07:14,250 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-07 18:07:14,250 - INFO - Aggregator dropout            : 0.35
+2025-06-07 18:07:14,250 - INFO - Validation frequency          : 41000 steps
+2025-06-07 18:07:14,250 - INFO - Number of epochs              : 100
+2025-06-07 18:07:14,250 - INFO - World size                    : 2
+2025-06-07 18:07:14,250 - INFO - Device                        : cuda
+2025-06-07 18:07:14,250 - INFO - ------------------------------------
+
+2025-06-07 19:02:26,699 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-07 19:02:28,612 - INFO - using MLP layer as FFN
+2025-06-07 19:02:30,353 - INFO - ------ Training Configuration ------
+2025-06-07 19:02:30,353 - INFO - Max chunks per sample         : 72
+2025-06-07 19:02:30,353 - INFO - Learning rate (aggregator)    : 5e-05
+2025-06-07 19:02:30,353 - INFO - Learning rate (base)          : 5.000000000000001e-07
+2025-06-07 19:02:30,353 - INFO - Gradient accumulation steps   : 600
+2025-06-07 19:02:30,353 - INFO - Warm-up steps                 : 20
+2025-06-07 19:02:30,353 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-07 19:02:30,353 - INFO - Aggregator dropout            : 0.35
+2025-06-07 19:02:30,353 - INFO - Validation frequency          : 41000 steps
+2025-06-07 19:02:30,353 - INFO - Number of epochs              : 100
+2025-06-07 19:02:30,353 - INFO - World size                    : 2
+2025-06-07 19:02:30,353 - INFO - Device                        : cuda
+2025-06-07 19:02:30,353 - INFO - ------------------------------------
+
+2025-06-07 21:47:58,980 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-07 21:48:01,741 - INFO - using MLP layer as FFN
+2025-06-07 21:48:03,575 - INFO - ------ Training Configuration ------
+2025-06-07 21:48:03,576 - INFO - Max chunks per sample         : 72
+2025-06-07 21:48:03,576 - INFO - Learning rate (aggregator)    : 1e-05
+2025-06-07 21:48:03,576 - INFO - Learning rate (base)          : 1.0000000000000001e-07
+2025-06-07 21:48:03,576 - INFO - Gradient accumulation steps   : 200
+2025-06-07 21:48:03,576 - INFO - Warm-up steps                 : 40
+2025-06-07 21:48:03,576 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-07 21:48:03,576 - INFO - Aggregator dropout            : 0.35
+2025-06-07 21:48:03,576 - INFO - Validation frequency          : 41000 steps
+2025-06-07 21:48:03,576 - INFO - Number of epochs              : 100
+2025-06-07 21:48:03,576 - INFO - World size                    : 2
+2025-06-07 21:48:03,576 - INFO - Device                        : cuda
+2025-06-07 21:48:03,576 - INFO - ------------------------------------
+
+2025-06-07 22:37:12,224 - INFO - Step    2000  Ep 01  loss 0.8021  lr 0.000002  fetch    0.5 ms  compute 1713.0 ms
+2025-06-07 22:37:12,228 - INFO - Accuracy:     T0:0.50  T1:0.54  T2:0.51  T3:0.51  T4:0.59  T5:0.75  
+2025-06-07 22:37:12,229 - INFO - Sensitivity:  T0:0.04  T1:0.22  T2:0.21  T3:0.46  T4:0.95  T5:1.00  
+2025-06-07 22:37:12,229 - INFO - Specificity:  T0:0.95  T1:0.86  T2:0.83  T3:0.58  T4:0.04  T5:0.00  
+2025-06-07 22:37:12,229 - INFO - iteration: 2000 | epoch: 0 | loss: 0.8021 | lr: 0.0000 | type: training | acc_task0: 0.4990 | sens_task0: 0.0375 | spec_task0: 0.9487 | acc_task1: 0.5361 | sens_task1: 0.2233 | spec_task1: 0.8576 | acc_task2: 0.5054 | sens_task2: 0.2079 | spec_task2: 0.8266 | acc_task3: 0.5141 | sens_task3: 0.4554 | spec_task3: 0.5808 | acc_task4: 0.5949 | sens_task4: 0.9506 | spec_task4: 0.0379 | acc_task5: 0.7504 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-07 23:48:23,679 - INFO - Step    4000  Ep 01  loss 0.7100  lr 0.000005  fetch    0.7 ms  compute 1631.3 ms
+2025-06-07 23:48:23,683 - INFO - Accuracy:     T0:0.51  T1:0.54  T2:0.50  T3:0.53  T4:0.58  T5:0.74  
+2025-06-07 23:48:23,684 - INFO - Sensitivity:  T0:0.04  T1:0.24  T2:0.23  T3:0.42  T4:0.91  T5:1.00  
+2025-06-07 23:48:23,684 - INFO - Specificity:  T0:0.96  T1:0.85  T2:0.78  T3:0.65  T4:0.09  T5:0.00  
+2025-06-07 23:48:23,684 - INFO - iteration: 4000 | epoch: 0 | loss: 0.7100 | lr: 0.0000 | type: training | acc_task0: 0.5092 | sens_task0: 0.0439 | spec_task0: 0.9559 | acc_task1: 0.5427 | sens_task1: 0.2380 | spec_task1: 0.8486 | acc_task2: 0.5015 | sens_task2: 0.2309 | spec_task2: 0.7837 | acc_task3: 0.5273 | sens_task3: 0.4182 | spec_task3: 0.6477 | acc_task4: 0.5774 | sens_task4: 0.9055 | spec_task4: 0.0900 | acc_task5: 0.7383 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-08 00:49:11,213 - INFO - Step    6000  Ep 01  loss 0.6034  lr 0.000009  fetch   63.9 ms  compute 1544.1 ms
+2025-06-08 00:49:11,217 - INFO - Accuracy:     T0:0.51  T1:0.54  T2:0.51  T3:0.53  T4:0.58  T5:0.74  
+2025-06-08 00:49:11,217 - INFO - Sensitivity:  T0:0.05  T1:0.26  T2:0.26  T3:0.41  T4:0.88  T5:1.00  
+2025-06-08 00:49:11,217 - INFO - Specificity:  T0:0.96  T1:0.84  T2:0.78  T3:0.66  T4:0.12  T5:0.00  
+2025-06-08 00:49:11,217 - INFO - iteration: 6000 | epoch: 0 | loss: 0.6034 | lr: 0.0000 | type: training | acc_task0: 0.5070 | sens_task0: 0.0507 | spec_task0: 0.9573 | acc_task1: 0.5447 | sens_task1: 0.2599 | spec_task1: 0.8380 | acc_task2: 0.5093 | sens_task2: 0.2580 | spec_task2: 0.7784 | acc_task3: 0.5290 | sens_task3: 0.4124 | spec_task3: 0.6606 | acc_task4: 0.5791 | sens_task4: 0.8816 | spec_task4: 0.1153 | acc_task5: 0.7429 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-08 02:14:40,108 - INFO - Step    8000  Ep 01  loss 0.6534  lr 0.000010  fetch    1.5 ms  compute 3919.9 ms
+2025-06-08 02:14:40,110 - INFO - Accuracy:     T0:0.50  T1:0.54  T2:0.51  T3:0.53  T4:0.59  T5:0.74  
+2025-06-08 02:14:40,110 - INFO - Sensitivity:  T0:0.07  T1:0.26  T2:0.27  T3:0.42  T4:0.90  T5:1.00  
+2025-06-08 02:14:40,110 - INFO - Specificity:  T0:0.95  T1:0.84  T2:0.78  T3:0.66  T4:0.10  T5:0.00  
+2025-06-08 02:14:40,110 - INFO - iteration: 8000 | epoch: 0 | loss: 0.6534 | lr: 0.0000 | type: training | acc_task0: 0.5038 | sens_task0: 0.0675 | spec_task0: 0.9459 | acc_task1: 0.5442 | sens_task1: 0.2616 | spec_task1: 0.8418 | acc_task2: 0.5120 | sens_task2: 0.2721 | spec_task2: 0.7752 | acc_task3: 0.5330 | sens_task3: 0.4199 | spec_task3: 0.6634 | acc_task4: 0.5865 | sens_task4: 0.8958 | spec_task4: 0.1034 | acc_task5: 0.7448 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-08 06:55:41,513 - INFO - Starting training on 3 GPUs with full model copies (DDP)
+2025-06-08 06:55:45,074 - INFO - using MLP layer as FFN
+2025-06-08 06:55:46,816 - INFO - ------ Training Configuration ------
+2025-06-08 06:55:46,816 - INFO - Max chunks per sample         : 72
+2025-06-08 06:55:46,816 - INFO - Learning rate (aggregator)    : 1e-05
+2025-06-08 06:55:46,816 - INFO - Learning rate (base)          : 1.0000000000000001e-07
+2025-06-08 06:55:46,816 - INFO - Gradient accumulation steps   : 1600
+2025-06-08 06:55:46,816 - INFO - Warm-up steps                 : 5
+2025-06-08 06:55:46,816 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-08 06:55:46,816 - INFO - Aggregator dropout            : 0.35
+2025-06-08 06:55:46,816 - INFO - Validation frequency          : 41000 steps
+2025-06-08 06:55:46,816 - INFO - Number of epochs              : 100
+2025-06-08 06:55:46,816 - INFO - World size                    : 3
+2025-06-08 06:55:46,816 - INFO - Device                        : cuda
+2025-06-08 06:55:46,816 - INFO - ------------------------------------
+
+2025-06-08 15:56:56,223 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-08 15:56:58,995 - INFO - using MLP layer as FFN
+2025-06-08 15:57:26,857 - INFO - ------ Training Configuration ------
+2025-06-08 15:57:26,857 - INFO - Max chunks per sample         : 72
+2025-06-08 15:57:26,857 - INFO - Learning rate (aggregator)    : 1e-05
+2025-06-08 15:57:26,857 - INFO - Learning rate (base)          : 1.0000000000000001e-07
+2025-06-08 15:57:26,857 - INFO - Gradient accumulation steps   : 1600
+2025-06-08 15:57:26,857 - INFO - Warm-up steps                 : 5
+2025-06-08 15:57:26,857 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-08 15:57:26,857 - INFO - Aggregator dropout            : 0.35
+2025-06-08 15:57:26,857 - INFO - Validation frequency          : 41000 steps
+2025-06-08 15:57:26,857 - INFO - Number of epochs              : 100
+2025-06-08 15:57:26,857 - INFO - World size                    : 2
+2025-06-08 15:57:26,857 - INFO - Device                        : cuda
+2025-06-08 15:57:26,857 - INFO - ------------------------------------
+
+2025-06-08 16:32:56,462 - INFO - Step    2000  Ep 01  loss 0.8460  lr 0.000002  fetch    0.5 ms  compute 1025.5 ms
+2025-06-08 16:32:56,466 - INFO - Accuracy:     T0:0.50  T1:0.53  T2:0.50  T3:0.53  T4:0.61  T5:0.74  
+2025-06-08 16:32:56,466 - INFO - Sensitivity:  T0:0.05  T1:0.20  T2:0.18  T3:0.48  T4:0.97  T5:1.00  
+2025-06-08 16:32:56,466 - INFO - Specificity:  T0:0.95  T1:0.87  T2:0.84  T3:0.59  T4:0.02  T5:0.00  
+2025-06-08 16:32:56,467 - INFO - iteration: 2000 | epoch: 0 | loss: 0.8460 | lr: 0.0000 | type: training | acc_task0: 0.5000 | sens_task0: 0.0549 | spec_task0: 0.9469 | acc_task1: 0.5255 | sens_task1: 0.1990 | spec_task1: 0.8701 | acc_task2: 0.4951 | sens_task2: 0.1802 | spec_task2: 0.8416 | acc_task3: 0.5311 | sens_task3: 0.4835 | spec_task3: 0.5868 | acc_task4: 0.6083 | sens_task4: 0.9692 | spec_task4: 0.0234 | acc_task5: 0.7418 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-08 17:07:38,678 - INFO - Step    4000  Ep 01  loss 0.7014  lr 0.000005  fetch    0.6 ms  compute 1045.9 ms
+2025-06-08 17:07:38,682 - INFO - Accuracy:     T0:0.50  T1:0.52  T2:0.49  T3:0.52  T4:0.61  T5:0.75  
+2025-06-08 17:07:38,682 - INFO - Sensitivity:  T0:0.05  T1:0.19  T2:0.18  T3:0.47  T4:0.97  T5:1.00  
+2025-06-08 17:07:38,682 - INFO - Specificity:  T0:0.95  T1:0.86  T2:0.83  T3:0.58  T4:0.03  T5:0.00  
+2025-06-08 17:07:38,682 - INFO - iteration: 4000 | epoch: 0 | loss: 0.7014 | lr: 0.0000 | type: training | acc_task0: 0.5000 | sens_task0: 0.0531 | spec_task0: 0.9461 | acc_task1: 0.5186 | sens_task1: 0.1942 | spec_task1: 0.8573 | acc_task2: 0.4859 | sens_task2: 0.1759 | spec_task2: 0.8252 | acc_task3: 0.5211 | sens_task3: 0.4729 | spec_task3: 0.5767 | acc_task4: 0.6069 | sens_task4: 0.9695 | spec_task4: 0.0264 | acc_task5: 0.7487 | sens_task5: 1.0000 | spec_task5: 0.0000
+2025-06-08 17:42:34,539 - INFO - Step    6000  Ep 01  loss 0.6181  lr 0.000009  fetch    0.5 ms  compute 1037.4 ms
+2025-06-08 17:42:34,546 - INFO - Accuracy:     T0:0.49  T1:0.52  T2:0.49  T3:0.52  T4:0.61  T5:0.75  
+2025-06-08 17:42:34,546 - INFO - Sensitivity:  T0:0.05  T1:0.21  T2:0.20  T3:0.48  T4:0.97  T5:1.00  
+2025-06-08 17:42:34,546 - INFO - Specificity:  T0:0.95  T1:0.85  T2:0.81  T3:0.58  T4:0.03  T5:0.00  
+2025-06-08 17:42:34,546 - INFO - iteration: 6000 | epoch: 0 | loss: 0.6181 | lr: 0.0000 | type: training | acc_task0: 0.4925 | sens_task0: 0.0504 | spec_task0: 0.9460 | acc_task1: 0.5211 | sens_task1: 0.2123 | spec_task1: 0.8520 | acc_task2: 0.4862 | sens_task2: 0.1981 | spec_task2: 0.8084 | acc_task3: 0.5239 | sens_task3: 0.4772 | spec_task3: 0.5788 | acc_task4: 0.6093 | sens_task4: 0.9651 | spec_task4: 0.0282 | acc_task5: 0.7480 | sens_task5: 1.0000 | spec_task5: 0.0000

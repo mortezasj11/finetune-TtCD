@@ -1,0 +1,34 @@
+2025-06-05_151118: Deploying the 2_multiple_GPU_DDP.yaml job file.
+job.batch/msalehjahromi-torchrun-ftn-ddp created
+2025-06-05_151354: Waiting for the pod of job/msalehjahromi-torchrun-ftn-ddp to be ready before starting the log tailing process.
+2025-06-05_151425: Starting to tail the container log.
+2025-06-05_151425: Creating the log-runner.sh script.
+2025-06-05_151425: Executing the log-runner.sh script.
+2025-06-05_151425: The log-runner.sh script for job/msalehjahromi-torchrun-ftn-ddp is now running.
+2025-06-05_151455: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_151455: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_151455: Job/msalehjahromi-torchrun-ftn-ddp appears to still be active.  Starting the logger again.
+2025-06-05_151556: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_151557: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_151602: Job/msalehjahromi-torchrun-ftn-ddp appears to still be active.  Starting the logger again.
+2025-06-05_151648: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_151648: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_151653: Job/msalehjahromi-torchrun-ftn-ddp appears to still be active.  Starting the logger again.
+2025-06-05_151729: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_151729: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_151730: Job/msalehjahromi-torchrun-ftn-ddp appears to still be active.  Starting the logger again.
+2025-06-05_151805: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_151805: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_151805: Job/msalehjahromi-torchrun-ftn-ddp appears to still be active.  Starting the logger again.
+2025-06-05_151836: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_151836: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_151837: Job/msalehjahromi-torchrun-ftn-ddp appears to still be active.  Starting the logger again.
+2025-06-05_151918: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_151918: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_151918: Job/msalehjahromi-torchrun-ftn-ddp appears to still be active.  Starting the logger again.
+2025-06-05_151949: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_151949: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_151950: Job/msalehjahromi-torchrun-ftn-ddp appears to still be active.  Starting the logger again.
+2025-06-05_152413: Kubectl Log tailer for job/msalehjahromi-torchrun-ftn-ddp appears to no longer be running.
+2025-06-05_152413: Checking the current state of job/msalehjahromi-torchrun-ftn-ddp.
+2025-06-05_152452: The job/msalehjahromi-torchrun-ftn-ddp is no longer running. Log-runner.sh script is stopping.

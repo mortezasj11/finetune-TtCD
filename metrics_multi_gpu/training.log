@@ -1,0 +1,40 @@
+2025-06-05 20:00:24,576 - INFO - Starting training on 4 GPUs with full model copies (DDP)
+2025-06-05 20:00:24,686 - INFO - Starting training on 4 GPUs with full model copies (DDP)
+2025-06-05 20:00:24,730 - INFO - Starting training on 4 GPUs with full model copies (DDP)
+2025-06-05 20:00:24,758 - INFO - Starting training on 4 GPUs with full model copies (DDP)
+2025-06-05 20:00:36,813 - INFO - using MLP layer as FFN
+2025-06-05 20:00:36,813 - INFO - using MLP layer as FFN
+2025-06-05 20:00:36,813 - INFO - using MLP layer as FFN
+2025-06-05 20:00:36,813 - INFO - using MLP layer as FFN
+2025-06-05 20:20:40,101 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:20:42,952 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:20:44,215 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:20:44,270 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:20:44,456 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:20:44,986 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:20:45,136 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:20:45,501 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:21:29,850 - INFO - using MLP layer as FFN
+2025-06-05 20:21:35,521 - INFO - using MLP layer as FFN
+2025-06-05 20:21:35,903 - INFO - using MLP layer as FFN
+2025-06-05 20:21:37,627 - INFO - using MLP layer as FFN
+2025-06-05 20:21:37,724 - INFO - using MLP layer as FFN
+2025-06-05 20:21:37,782 - INFO - using MLP layer as FFN
+2025-06-05 20:21:37,879 - INFO - using MLP layer as FFN
+2025-06-05 20:21:37,996 - INFO - using MLP layer as FFN
+2025-06-05 20:29:45,227 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:29:46,338 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:29:49,532 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:29:50,119 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:29:50,391 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:29:50,455 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:29:50,699 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:29:50,743 - INFO - Starting training on 8 GPUs with full model copies (DDP)
+2025-06-05 20:30:36,181 - INFO - using MLP layer as FFN
+2025-06-05 20:30:36,203 - INFO - using MLP layer as FFN
+2025-06-05 20:30:41,829 - INFO - using MLP layer as FFN
+2025-06-05 20:30:42,524 - INFO - using MLP layer as FFN
+2025-06-05 20:30:43,013 - INFO - using MLP layer as FFN
+2025-06-05 20:30:43,065 - INFO - using MLP layer as FFN
+2025-06-05 20:30:43,158 - INFO - using MLP layer as FFN
+2025-06-05 20:30:43,173 - INFO - using MLP layer as FFN

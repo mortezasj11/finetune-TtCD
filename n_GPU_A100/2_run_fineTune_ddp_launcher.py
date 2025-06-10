@@ -267,7 +267,7 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-dir", type=str, default="/rsrch1/ip/msalehjahromi/codes/FineTune/multiGPU/metrics_multi_gpu",help="Directory to save training metrics")
     
     # New parameter for warmup steps
-    parser.add_argument("--warmup-steps", type=int, default=5000, help="Number of steps for warmup")
+    parser.add_argument("--warmup-steps", type=int, default=100, help="Number of steps for warmup")
     
     args = parser.parse_args()
     # Create output directory if it doesn't exist

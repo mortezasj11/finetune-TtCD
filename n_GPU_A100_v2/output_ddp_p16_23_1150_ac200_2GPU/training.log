@@ -1,0 +1,16 @@
+2025-06-10 17:34:50,820 - INFO - Starting training on 2 GPUs with full model copies (DDP)
+2025-06-10 17:34:52,931 - INFO - using MLP layer as FFN
+2025-06-10 17:34:56,665 - INFO - ------ Training Configuration ------
+2025-06-10 17:34:56,665 - INFO - Max chunks per sample         : 64
+2025-06-10 17:34:56,665 - INFO - Learning rate (aggregator)    : 6e-05
+2025-06-10 17:34:56,665 - INFO - Learning rate (base)          : 6.000000000000001e-07
+2025-06-10 17:34:56,665 - INFO - Gradient accumulation steps   : 200
+2025-06-10 17:34:56,665 - INFO - Warm-up steps                 : 5000
+2025-06-10 17:34:56,665 - INFO - Aggregator layers / heads     : 2 / 3
+2025-06-10 17:34:56,665 - INFO - Aggregator dropout            : 0.35
+2025-06-10 17:34:56,665 - INFO - Validation frequency          : 40000 steps
+2025-06-10 17:34:56,665 - INFO - Number of epochs              : 200
+2025-06-10 17:34:56,665 - INFO - World size                    : 2
+2025-06-10 17:34:56,665 - INFO - Device                        : cuda
+2025-06-10 17:34:56,665 - INFO - ------------------------------------
+
